@@ -358,8 +358,17 @@ fn is_avian_genetics_intent(lower: &str) -> bool {
     let avian = contains_any(
         lower,
         &[
-            "avian", "bird", "budgie", "budgerigar", "finch", "zebra finch",
-            "cockatiel", "lovebird", "parakeet", "hagoromo", "hagoromo",
+            "avian",
+            "bird",
+            "budgie",
+            "budgerigar",
+            "finch",
+            "zebra finch",
+            "cockatiel",
+            "lovebird",
+            "parakeet",
+            "hagoromo",
+            "hagoromo",
         ],
     );
     if !avian {
@@ -368,9 +377,23 @@ fn is_avian_genetics_intent(lower: &str) -> bool {
     contains_any(
         lower,
         &[
-            "genetics", "inheritance", "inherit", "cross", "x ", "×", "pairing",
-            "mutation", "opaline", "opline", "rainbow", "blackwing", "double factor",
-            "single factor", "sex-linked", "phenotype", "offspring",
+            "genetics",
+            "inheritance",
+            "inherit",
+            "cross",
+            "x ",
+            "×",
+            "pairing",
+            "mutation",
+            "opaline",
+            "opline",
+            "rainbow",
+            "blackwing",
+            "double factor",
+            "single factor",
+            "sex-linked",
+            "phenotype",
+            "offspring",
         ],
     )
 }

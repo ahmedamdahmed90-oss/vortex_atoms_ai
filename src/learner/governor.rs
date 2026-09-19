@@ -7,11 +7,11 @@
 // Kill-switches: config flip, admin pause, vortex_learn --pause.
 // Monthly license/SBOM report: vortex_learn --licenses.
 
-use std::collections::VecDeque;
-use std::time::Instant;
-use serde::{Deserialize, Serialize};
 use crate::learner::api::LicenseEntry;
 use crate::learner::canary::RunTelemetry;
+use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
+use std::time::Instant;
 
 /// Budget configuration for the learner governor.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -427,14 +427,12 @@ mod tests {
 
     #[test]
     fn sbom_total_chunks() {
-        let sources = vec![
-            crate::learner::compliance::SourceEntry {
-                id: "wikipedia_en".to_string(),
-                license: "CC-BY-SA-4.0".to_string(),
-                paths: vec!["/wiki/".to_string()],
-                rate_rpm: 30,
-            },
-        ];
+        let sources = vec![crate::learner::compliance::SourceEntry {
+            id: "wikipedia_en".to_string(),
+            license: "CC-BY-SA-4.0".to_string(),
+            paths: vec!["/wiki/".to_string()],
+            rate_rpm: 30,
+        }];
         let counts = vec![200];
         let sbom = BudgetGovernor::generate_sbom(&sources, &counts, 200.0);
         assert_eq!(sbom.total_chunks, 200);

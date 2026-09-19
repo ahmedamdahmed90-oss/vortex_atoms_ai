@@ -5,12 +5,12 @@
 // Provides GET /v1/admin/learner/metrics and /v1/admin/learner/runs.
 // Bounded ring buffers enforce the 50 MiB UI budget invariant.
 
+use crate::learner::canary::{RunTelemetry, WatchdogStatus};
+use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
-use crate::learner::canary::{RunTelemetry, WatchdogStatus};
 
 /// Maximum total size of learner_runs.jsonl in bytes (50 MiB UI budget).
 const MAX_LOG_SIZE_BYTES: u64 = 50 * 1024 * 1024;
@@ -87,12 +87,21 @@ impl RunLogBuffer {
     }
 
     pub fn push(&mut self, entry: RunLogEntry) {
-        let size = serde_json::to_string(&entry).map(|s| s.len() as u64).unwrap_or(0);
-        if self.total_size_bytes + size > MAX_LOG_SIZE_BYTES || self.entries.len() >= self.max_entries {
+        let size = serde_json::to_string(&entry)
+            .map(|s| s.len() as u64)
+            .unwrap_or(0);
+        if self.total_size_bytes + size > MAX_LOG_SIZE_BYTES
+            || self.entries.len() >= self.max_entries
+        {
             // Evict oldest entries until under budget and under max entries
-            while (self.total_size_bytes + size > MAX_LOG_SIZE_BYTES || self.entries.len() >= self.max_entries) && !self.entries.is_empty() {
+            while (self.total_size_bytes + size > MAX_LOG_SIZE_BYTES
+                || self.entries.len() >= self.max_entries)
+                && !self.entries.is_empty()
+            {
                 if let Some(old) = self.entries.first() {
-                    let old_size = serde_json::to_string(old).map(|s| s.len() as u64).unwrap_or(0);
+                    let old_size = serde_json::to_string(old)
+                        .map(|s| s.len() as u64)
+                        .unwrap_or(0);
                     self.total_size_bytes = self.total_size_bytes.saturating_sub(old_size);
                     self.entries.remove(0);
                 }
@@ -187,17 +196,48 @@ impl PersistentRunLog {
         }
 
         let total_ok: usize = guard.entries.iter().map(|e| e.telemetry.fetched_ok).sum();
-        let total_refused: usize = guard.entries.iter().map(|e| e.telemetry.refused_robots).sum();
-        let total_rate_limited: usize = guard.entries.iter().map(|e| e.telemetry.rate_limited).sum();
+        let total_refused: usize = guard
+            .entries
+            .iter()
+            .map(|e| e.telemetry.refused_robots)
+            .sum();
+        let total_rate_limited: usize =
+            guard.entries.iter().map(|e| e.telemetry.rate_limited).sum();
         let total_bytes: usize = guard.entries.iter().map(|e| e.telemetry.bytes).sum();
         let total_pages: usize = guard.entries.iter().map(|e| e.telemetry.pages).sum();
-        let total_chunks: usize = guard.entries.iter().map(|e| e.telemetry.chunks_indexed).sum();
-        let avg_cache: f64 = guard.entries.iter().map(|e| e.telemetry.cache_hit_rate).sum::<f64>() / runs as f64;
-        let avg_queue: f64 = guard.entries.iter().map(|e| e.telemetry.embed_queue_depth as f64).sum::<f64>() / runs as f64;
-        let latest_watchdog = guard.entries.last().map(|e| {
-            if e.watchdog_status.paused { "paused".to_string() } else { "running".to_string() }
-        }).unwrap_or_else(|| "idle".to_string());
-        let latest_disk = guard.entries.last().map(|e| e.telemetry.disk_mb).unwrap_or(0.0);
+        let total_chunks: usize = guard
+            .entries
+            .iter()
+            .map(|e| e.telemetry.chunks_indexed)
+            .sum();
+        let avg_cache: f64 = guard
+            .entries
+            .iter()
+            .map(|e| e.telemetry.cache_hit_rate)
+            .sum::<f64>()
+            / runs as f64;
+        let avg_queue: f64 = guard
+            .entries
+            .iter()
+            .map(|e| e.telemetry.embed_queue_depth as f64)
+            .sum::<f64>()
+            / runs as f64;
+        let latest_watchdog = guard
+            .entries
+            .last()
+            .map(|e| {
+                if e.watchdog_status.paused {
+                    "paused".to_string()
+                } else {
+                    "running".to_string()
+                }
+            })
+            .unwrap_or_else(|| "idle".to_string());
+        let latest_disk = guard
+            .entries
+            .last()
+            .map(|e| e.telemetry.disk_mb)
+            .unwrap_or(0.0);
 
         LearnerMetrics {
             total_runs: runs,
@@ -212,7 +252,11 @@ impl PersistentRunLog {
             avg_embed_queue_depth: avg_queue,
             current_watchdog_state: latest_watchdog,
             current_disk_mb: latest_disk,
-            uptime_ms: guard.entries.last().map(|e| e.telemetry.wall_ms).unwrap_or(0),
+            uptime_ms: guard
+                .entries
+                .last()
+                .map(|e| e.telemetry.wall_ms)
+                .unwrap_or(0),
         }
     }
 }
@@ -255,7 +299,10 @@ mod tests {
             run_id: "test_run_1".to_string(),
             timestamp: 1000,
             telemetry: telemetry.clone(),
-            watchdog_status: WatchdogStatus { paused: false, reason: None },
+            watchdog_status: WatchdogStatus {
+                paused: false,
+                reason: None,
+            },
             phase: "canary".to_string(),
         }
     }
@@ -288,7 +335,10 @@ mod tests {
                 run_id: format!("run_{}", i),
                 timestamp: 1000 + i as u128,
                 telemetry,
-                watchdog_status: WatchdogStatus { paused: false, reason: None },
+                watchdog_status: WatchdogStatus {
+                    paused: false,
+                    reason: None,
+                },
                 phase: "canary".to_string(),
             };
             log.append(&entry).unwrap();
@@ -329,7 +379,10 @@ mod tests {
                 run_id: format!("run_{}", i),
                 timestamp: 1000 + i as u128,
                 telemetry,
-                watchdog_status: WatchdogStatus { paused: false, reason: None },
+                watchdog_status: WatchdogStatus {
+                    paused: false,
+                    reason: None,
+                },
                 phase: "canary".to_string(),
             };
             buffer.push(entry);
@@ -373,7 +426,10 @@ mod tests {
                 run_id: format!("run_{}", i),
                 timestamp: 1000 + i as u128,
                 telemetry,
-                watchdog_status: WatchdogStatus { paused: false, reason: None },
+                watchdog_status: WatchdogStatus {
+                    paused: false,
+                    reason: None,
+                },
                 phase: "canary".to_string(),
             };
             buffer.push(entry);
@@ -401,7 +457,10 @@ mod tests {
             run_id: "big_run".to_string(),
             timestamp: 10000,
             telemetry: big_telemetry,
-            watchdog_status: WatchdogStatus { paused: false, reason: None },
+            watchdog_status: WatchdogStatus {
+                paused: false,
+                reason: None,
+            },
             phase: "canary".to_string(),
         };
         buffer.push(big_entry);
@@ -419,7 +478,10 @@ mod tests {
                 run_id: format!("run_{}", i),
                 timestamp: 1000 + i as u128,
                 telemetry,
-                watchdog_status: WatchdogStatus { paused: false, reason: None },
+                watchdog_status: WatchdogStatus {
+                    paused: false,
+                    reason: None,
+                },
                 phase: "canary".to_string(),
             };
             log.append(&entry).unwrap();

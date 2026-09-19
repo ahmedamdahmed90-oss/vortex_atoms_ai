@@ -2,12 +2,12 @@
 //
 // KNOW-01 Section 2: Acquisition Pipeline + Resumable State.
 
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 /// The redb-backed state store path.
 pub type StatePath = PathBuf;
@@ -98,29 +98,45 @@ impl StateStore {
 
     pub fn record_url_done(&self, url: &str, sha256: &str, source_id: &str) {
         let mut guard = self.inner.lock().unwrap();
-        guard.urls.insert(url.to_string(), UrlRecord {
-            url: url.to_string(),
-            source_id: source_id.to_string(),
-            fetched_at: SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0),
-            status: UrlStatus::Done,
-            sha256: sha256.to_string(),
-        });
+        guard.urls.insert(
+            url.to_string(),
+            UrlRecord {
+                url: url.to_string(),
+                source_id: source_id.to_string(),
+                fetched_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0),
+                status: UrlStatus::Done,
+                sha256: sha256.to_string(),
+            },
+        );
     }
 
     pub fn is_url_done(&self, url: &str) -> bool {
         let guard = self.inner.lock().unwrap();
-        guard.urls.get(url).map(|r| r.status == UrlStatus::Done).unwrap_or(false)
+        guard
+            .urls
+            .get(url)
+            .map(|r| r.status == UrlStatus::Done)
+            .unwrap_or(false)
     }
 
     pub fn mark_url_fetching(&self, url: &str, source_id: &str) {
         let mut guard = self.inner.lock().unwrap();
-        guard.urls.insert(url.to_string(), UrlRecord {
-            url: url.to_string(),
-            source_id: source_id.to_string(),
-            fetched_at: SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0),
-            status: UrlStatus::Fetching,
-            sha256: String::new(),
-        });
+        guard.urls.insert(
+            url.to_string(),
+            UrlRecord {
+                url: url.to_string(),
+                source_id: source_id.to_string(),
+                fetched_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0),
+                status: UrlStatus::Fetching,
+                sha256: String::new(),
+            },
+        );
     }
 
     pub fn add_page(&self, page: PageRecord) {
@@ -145,17 +161,28 @@ impl StateStore {
 
     pub fn add_gap(&self, topic: String) {
         let mut guard = self.inner.lock().unwrap();
-        guard.gaps.insert(topic.clone(), GapRecord {
-            topic,
-            count: 1,
-            last_seen: SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0),
-            resolved: false,
-        });
+        guard.gaps.insert(
+            topic.clone(),
+            GapRecord {
+                topic,
+                count: 1,
+                last_seen: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0),
+                resolved: false,
+            },
+        );
     }
 
     pub fn open_gaps(&self) -> Vec<GapRecord> {
         let guard = self.inner.lock().unwrap();
-        guard.gaps.values().filter(|g| !g.resolved).cloned().collect()
+        guard
+            .gaps
+            .values()
+            .filter(|g| !g.resolved)
+            .cloned()
+            .collect()
     }
 
     pub fn resolve_gap(&self, topic: &str) {
@@ -187,7 +214,11 @@ pub fn minhash_similarity(a: &str, b: &str) -> f64 {
     }
     let intersection = a_words.intersection(&b_words).count() as f64;
     let union = a_words.union(&b_words).count() as f64;
-    if union == 0.0 { 0.0 } else { intersection / union }
+    if union == 0.0 {
+        0.0
+    } else {
+        intersection / union
+    }
 }
 
 #[cfg(test)]

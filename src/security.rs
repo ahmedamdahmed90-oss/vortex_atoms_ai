@@ -636,8 +636,8 @@ pub async fn auth_middleware(
         // WS origin check: prevent transport hijacking via unauthorized
         // WebSocket upgrades from cross-origin sites.
         if path == "/ws" && !ws_origin_allowed(&req, &sec) {
-                deny!(denied_403, forbidden_read_only());
-            }
+            deny!(denied_403, forbidden_read_only());
+        }
         // Read-only kiosk mode refuses every state mutation even with a
         // valid admin token (and even with auth disabled).
         if is_mutating_admin_path(&path) {
@@ -737,19 +737,34 @@ pub fn build_cors(cfg: &SecurityConfig) -> CorsLayer {
 /// Axum middleware: inject strict security headers on every response
 /// to mitigate transport hijacking, clickjacking, MIME sniffing, and
 /// XSS-driven content injection.
-pub async fn security_headers_middleware(
-    req: Request,
-    next: Next,
-) -> Response {
+pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
     let mut res = next.run(req).await;
     let h = res.headers_mut();
-    h.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    h.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
     h.insert("x-frame-options", HeaderValue::from_static("DENY"));
-    h.insert("x-xss-protection", HeaderValue::from_static("1; mode=block"));
-    h.insert("referrer-policy", HeaderValue::from_static("strict-origin-when-cross-origin"));
-    h.insert("permissions-policy", HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=()"));
-    h.insert("cache-control", HeaderValue::from_static("no-store, no-cache, must-revalidate, proxy-revalidate"));
-    h.insert("strict-transport-security", HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"));
+    h.insert(
+        "x-xss-protection",
+        HeaderValue::from_static("1; mode=block"),
+    );
+    h.insert(
+        "referrer-policy",
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    h.insert(
+        "permissions-policy",
+        HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=()"),
+    );
+    h.insert(
+        "cache-control",
+        HeaderValue::from_static("no-store, no-cache, must-revalidate, proxy-revalidate"),
+    );
+    h.insert(
+        "strict-transport-security",
+        HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+    );
     if let Ok(csp) = HeaderValue::from_str(
         "default-src 'none'; frame-ancestors 'none'; sandbox allow-forms allow-scripts; \
          connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; \

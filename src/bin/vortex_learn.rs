@@ -5,7 +5,11 @@
 
 use std::path::PathBuf;
 
-use vortex_atoms_ai::learner::{LearnerConfig, StateStore, AcquisitionPipeline, LearnerScheduler, LearnerApiState, seed_sources, CanaryConfig, ActivationPhase, check_allowlist_miss, GoldenQuery, run_eval, regression_banner, RetrievalResult, BudgetGovernor, BudgetConfig, ReportGenerator};
+use vortex_atoms_ai::learner::{
+    check_allowlist_miss, regression_banner, run_eval, seed_sources, AcquisitionPipeline,
+    ActivationPhase, BudgetConfig, BudgetGovernor, CanaryConfig, GoldenQuery, LearnerApiState,
+    LearnerConfig, LearnerScheduler, ReportGenerator, RetrievalResult, StateStore,
+};
 
 #[tokio::main]
 async fn main() {
@@ -49,7 +53,10 @@ async fn main() {
     if args.iter().any(|a| a == "--status") {
         let api = LearnerApiState::new(store.clone());
         let status = api.status();
-        println!("Learner Status: enabled={}, gaps={}, queue={}", status.enabled, status.open_gaps, status.queue_size);
+        println!(
+            "Learner Status: enabled={}, gaps={}, queue={}",
+            status.enabled, status.open_gaps, status.queue_size
+        );
         return;
     }
 
@@ -128,19 +135,28 @@ fn run_canary(_config: &LearnerConfig) {
     println!("  Source: {}", canary.source_id);
     println!("  Max pages: {}", canary.max_pages);
     println!("  Max runtime: {} min", canary.max_runtime_minutes);
-    println!("  Abort on allowlist miss: {}", canary.abort_on_allowlist_miss);
+    println!(
+        "  Abort on allowlist miss: {}",
+        canary.abort_on_allowlist_miss
+    );
 
     // Canary isolation test: verify single source restriction
     let sources = seed_sources();
     let canary_source = sources.iter().find(|s| s.id == canary.source_id);
-    assert!(canary_source.is_some(), "canary source must exist in registry");
+    assert!(
+        canary_source.is_some(),
+        "canary source must exist in registry"
+    );
 
     // Verify allowlist enforcement on a known bad URL
     let bad_url = "https://evil.com/secret";
     let result = check_allowlist_miss(bad_url);
     assert!(result.is_err(), "allowlist must reject non-registry URLs");
 
-    println!("vortex_learn: canary isolation verified — {} pages max", canary.max_pages);
+    println!(
+        "vortex_learn: canary isolation verified — {} pages max",
+        canary.max_pages
+    );
     println!("vortex_learn: canary abort-on-allowlist-miss enforced");
 }
 
@@ -172,7 +188,10 @@ fn run_eval_mode(_config: &LearnerConfig) {
     println!("  Probes green: {}", eval_run.probes_green);
 
     if !eval_run.probes_green {
-        eprintln!("vortex_learn: eval FAILED — probe leaks detected: {:?}", eval_run.probe_leaks);
+        eprintln!(
+            "vortex_learn: eval FAILED — probe leaks detected: {:?}",
+            eval_run.probe_leaks
+        );
         std::process::exit(1);
     }
     println!("vortex_learn: eval complete — all probes green");
@@ -186,8 +205,10 @@ fn run_licenses(_config: &LearnerConfig) {
     println!("  Total sources: {}", sbom.entries.len());
     println!("  Total chunks: {}", sbom.total_chunks);
     for entry in &sbom.entries {
-        println!("  - {} ({}) — chunks: {}, attribution: {}",
-            entry.source_id, entry.license, entry.chunk_count, entry.attribution_required);
+        println!(
+            "  - {} ({}) — chunks: {}, attribution: {}",
+            entry.source_id, entry.license, entry.chunk_count, entry.attribution_required
+        );
     }
     println!("vortex_learn: license report complete");
 }
@@ -233,6 +254,11 @@ fn load_config() -> LearnerConfig {
 
 fn learner_state_path() -> PathBuf {
     std::env::var("LOCALAPPDATA")
-        .map(|p| PathBuf::from(p).join("vortex_atoms_ai").join("learner").join("state.db"))
+        .map(|p| {
+            PathBuf::from(p)
+                .join("vortex_atoms_ai")
+                .join("learner")
+                .join("state.db")
+        })
         .unwrap_or_else(|_| PathBuf::from("./learner-state.db"))
 }

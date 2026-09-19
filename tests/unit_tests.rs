@@ -498,7 +498,10 @@ fn kernel_summary_for(prompt: &str) -> (bool, String) {
 fn avian_embedded_manifest_matches_generated_schema() {
     let fastpath = embedded_avian();
     let manifest = fastpath.manifest();
-    assert_eq!(manifest.schema, "vortex_atoms_ai_avian_fastpath", "embedded schema");
+    assert_eq!(
+        manifest.schema, "vortex_atoms_ai_avian_fastpath",
+        "embedded schema"
+    );
     assert_eq!(manifest.version, 1, "embedded fastpath version");
     assert!(
         manifest
@@ -521,7 +524,10 @@ fn avian_answer_deterministic_split_x_visual() {
     let fastpath = embedded_avian();
     let first = fastpath.answer("cross a split budgie with a visual budgie");
     let second = fastpath.answer("cross a split budgie with a visual budgie");
-    assert!(first.recognized, "split x visual is a canonical autosomal-recessive cross");
+    assert!(
+        first.recognized,
+        "split x visual is a canonical autosomal-recessive cross"
+    );
     assert_eq!(
         first.template_id.as_deref(),
         Some("ar_visual_x_split"),
@@ -603,7 +609,10 @@ fn avian_autosomal_recessive_normal_x_normal_declines_but_stays_grounded() {
 fn avian_non_avian_prompt_is_not_routed_to_fastpath() {
     let fastpath = embedded_avian();
     let answer = fastpath.answer("how do I install a graphics driver?");
-    assert!(!answer.recognized, "graphics-driver prompt is not avian intent");
+    assert!(
+        !answer.recognized,
+        "graphics-driver prompt is not avian intent"
+    );
     assert_eq!(answer.template_id, None);
 }
 
@@ -721,11 +730,15 @@ fn test_update_performance_patches_only_coalesce_window() {
 fn test_update_performance_rejects_out_of_range_without_touching_disk() {
     use vortex_atoms_ai::vortex_config::VortexConfig;
     let mut temp = NamedTempFile::new().expect("temp file");
-    temp.write_all(br#"{"performance": {"ws_coalesce_ms": 50}}"#).expect("write temp");
+    temp.write_all(br#"{"performance": {"ws_coalesce_ms": 50}}"#)
+        .expect("write temp");
     temp.flush().expect("flush");
     let path = temp.path().to_path_buf();
     let err = VortexConfig::update_performance(&path, Some(u64::MAX)).expect_err("reject");
     assert!(err.contains("exceeds maximum"), "unexpected error: {err}");
     let raw = std::fs::read_to_string(&path).expect("read back");
-    assert!(raw.contains("50"), "disk must be untouched on rejection: {raw}");
+    assert!(
+        raw.contains("50"),
+        "disk must be untouched on rejection: {raw}"
+    );
 }

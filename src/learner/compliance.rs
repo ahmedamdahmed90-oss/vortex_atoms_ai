@@ -5,9 +5,9 @@
 // Compliance: HTTPS only, robots.txt parsed+cached, per-host token bucket,
 // polite UA, max depth 3, no auth walls, no paywalls, no JS rendering.
 
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
 
 /// The polite user-agent string required by KNOW-01 §0.3.
 pub const LEARNER_USER_AGENT: &str = "VortexAtomsLearner/0.1 (+https://vortex-atoms.tech/bot)";
@@ -224,9 +224,10 @@ impl AllowlistMatcher {
         let path = parsed.path();
         let host = parsed.host_str().unwrap_or("");
         self.sources.iter().any(|src| {
-            src.paths.iter().any(|p| {
-                path.starts_with(p) || path.starts_with(&format!("/{p}"))
-            }) && host == src.id
+            src.paths
+                .iter()
+                .any(|p| path.starts_with(p) || path.starts_with(&format!("/{p}")))
+                && host == src.id
         })
     }
 }
@@ -363,7 +364,12 @@ mod tests {
 
     #[test]
     fn license_record_non_pd_requires_attribution() {
-        let rec = LicenseRecord::new("wikipedia".into(), "CC-BY-SA-4.0".into(), "https://x".into(), 0);
+        let rec = LicenseRecord::new(
+            "wikipedia".into(),
+            "CC-BY-SA-4.0".into(),
+            "https://x".into(),
+            0,
+        );
         assert!(rec.attribution_required);
     }
 
@@ -394,19 +400,28 @@ mod tests {
     #[test]
     fn compliance_checker_requires_https() {
         let checker = ComplianceChecker::new(seed_sources());
-        assert_eq!(checker.check("http://wikipedia_en/wiki/Page"), ComplianceResult::RequiresHttps);
+        assert_eq!(
+            checker.check("http://wikipedia_en/wiki/Page"),
+            ComplianceResult::RequiresHttps
+        );
     }
 
     #[test]
     fn compliance_checker_rejects_not_allowlisted() {
         let checker = ComplianceChecker::new(seed_sources());
-        assert_eq!(checker.check("https://evil.com/page"), ComplianceResult::NotAllowlisted);
+        assert_eq!(
+            checker.check("https://evil.com/page"),
+            ComplianceResult::NotAllowlisted
+        );
     }
 
     #[test]
     fn compliance_checker_allows_valid_url() {
         let checker = ComplianceChecker::new(seed_sources());
-        assert_eq!(checker.check("https://wikipedia_en/wiki/Main_Page"), ComplianceResult::Allowed);
+        assert_eq!(
+            checker.check("https://wikipedia_en/wiki/Main_Page"),
+            ComplianceResult::Allowed
+        );
     }
 
     #[test]

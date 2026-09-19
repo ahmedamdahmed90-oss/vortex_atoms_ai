@@ -19,7 +19,7 @@ use vortex_atoms_ai::{
         format_tool_results, parse_tool_calls, tool_definitions_prompt, KernelToolExecutor,
         ToolCall, ToolExecutor,
     },
-    security::{protect_data, unprotect_data, persist_token_file, TokenFile},
+    security::{persist_token_file, protect_data, unprotect_data, TokenFile},
     session_store::{Session, SessionStore},
     state::{
         deterministic_embedding, CodeLogicState, RouterState, SharedState, SupervisorState, UiState,
@@ -1267,7 +1267,10 @@ fn test_token_file_persistence_round_trip() {
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("auth.json");
 
-    let file = TokenFile { api_token: Some("vxt_test123".to_string()), admin_token: Some("vxa_test456".to_string()) };
+    let file = TokenFile {
+        api_token: Some("vxt_test123".to_string()),
+        admin_token: Some("vxa_test456".to_string()),
+    };
 
     // Ensure tokens are persisted (DPAPI on Windows, plaintext on non-Windows).
     persist_token_file(&path, &file);
@@ -1276,8 +1279,7 @@ fn test_token_file_persistence_round_trip() {
     let loaded = if path.exists() {
         let bytes = std::fs::read(&path).expect("read failed");
         let plain = unprotect_data(&bytes).expect("unprotect failed");
-        serde_json::from_str::<TokenFile>(&String::from_utf8(plain).unwrap())
-            .expect("parse failed")
+        serde_json::from_str::<TokenFile>(&String::from_utf8(plain).unwrap()).expect("parse failed")
     } else {
         TokenFile::default()
     };
@@ -1290,7 +1292,8 @@ fn test_token_file_persistence_round_trip() {
 
 #[test]
 fn test_session_purge_retention_sweep() {
-    let dir = std::env::temp_dir().join(format!("vortex_test_sessions_purge_{}", std::process::id()));
+    let dir =
+        std::env::temp_dir().join(format!("vortex_test_sessions_purge_{}", std::process::id()));
     let store = SessionStore::new(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
@@ -1336,7 +1339,10 @@ fn test_session_store_encryption_at_rest() {
     // Read the raw file — should NOT contain "secret message" in plaintext.
     let raw = std::fs::read(dir.join("encrypted_session.json")).expect("read failed");
     let raw_str = String::from_utf8_lossy(&raw);
-    assert!(!raw_str.contains("secret message"), "session stored in plaintext!");
+    assert!(
+        !raw_str.contains("secret message"),
+        "session stored in plaintext!"
+    );
 
     // Load decrypts via unprotect_data.
     let loaded = store.load("encrypted_session").expect("load failed");

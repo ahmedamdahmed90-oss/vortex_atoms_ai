@@ -3,8 +3,8 @@
 // KNOW-01 Section 2: Acquisition Pipeline.
 // Stages: fetch → extract → normalize → lang detect → chunk → dedup → quality → enqueue embed.
 
-use crate::learner::compliance::{ComplianceChecker, ComplianceResult, seed_sources};
-use crate::learner::state::{StateStore, ChunkRecord, EmbedQueueEntry, EmbedPriority};
+use crate::learner::compliance::{seed_sources, ComplianceChecker, ComplianceResult};
+use crate::learner::state::{ChunkRecord, EmbedPriority, EmbedQueueEntry, StateStore};
 
 /// Result of a single acquisition stage.
 #[derive(Clone, Debug)]
@@ -122,8 +122,8 @@ impl std::error::Error for PipelineError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use crate::learner::compute_sha256;
+    use std::path::PathBuf;
 
     fn make_pipeline() -> AcquisitionPipeline {
         let store = StateStore::open(&PathBuf::from("/tmp/pipeline_test")).unwrap();
@@ -134,14 +134,24 @@ mod tests {
     fn pipeline_rejects_non_https() {
         let p = make_pipeline();
         let result = p.process_url("http://evil.com/page");
-        assert!(matches!(result, Err(PipelineError::ComplianceFailed(ComplianceResult::RequiresHttps))));
+        assert!(matches!(
+            result,
+            Err(PipelineError::ComplianceFailed(
+                ComplianceResult::RequiresHttps
+            ))
+        ));
     }
 
     #[test]
     fn pipeline_rejects_not_allowlisted() {
         let p = make_pipeline();
         let result = p.process_url("https://evil.com/page");
-        assert!(matches!(result, Err(PipelineError::ComplianceFailed(ComplianceResult::NotAllowlisted))));
+        assert!(matches!(
+            result,
+            Err(PipelineError::ComplianceFailed(
+                ComplianceResult::NotAllowlisted
+            ))
+        ));
     }
 
     #[test]
@@ -155,7 +165,12 @@ mod tests {
     fn pipeline_rejects_wikipedia_admin() {
         let p = make_pipeline();
         let result = p.process_url("https://wikipedia_en/admin/delete");
-        assert!(matches!(result, Err(PipelineError::ComplianceFailed(ComplianceResult::NotAllowlisted))));
+        assert!(matches!(
+            result,
+            Err(PipelineError::ComplianceFailed(
+                ComplianceResult::NotAllowlisted
+            ))
+        ));
     }
 
     #[test]
@@ -182,6 +197,8 @@ mod tests {
             content: vec![],
             final_url: "x".to_string(),
         });
-        let _chunk = StageResult::Chunk(ChunkResult { chunks: vec!["a".to_string()] });
+        let _chunk = StageResult::Chunk(ChunkResult {
+            chunks: vec!["a".to_string()],
+        });
     }
 }

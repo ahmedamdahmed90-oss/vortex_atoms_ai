@@ -5,31 +5,24 @@
 // Light Arabic stemmer for the keyword side of RRF.
 // Language-aware fusion weights for retrieval.ar_weights.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Arabic tatweel (تَتْوِيل) character — repeated consonant elongation.
 const TATWEEL: char = 'ـ';
 
 /// Arabic diacritics to strip.
-const DIACRITICS: [char; 14] = [
-    'َ', 'ُ', 'ِ', 'ّ', 'ْ', 'ً', 'ٌ', 'ٍ', 'ٰ', 'ـ', 'ٓ', 'ٔ', 'ٕ', 'ٖ',
-];
+const DIACRITICS: [char; 14] = ['َ', 'ُ', 'ِ', 'ّ', 'ْ', 'ً', 'ٌ', 'ٍ', 'ٰ', 'ـ', 'ٓ', 'ٔ', 'ٕ', 'ٖ'];
 
 /// Alef variants to normalize.
-const ALEF_VARIANTS: [(char, char); 5] = [
-    ('آ', 'ا'), ('أ', 'ا'), ('ؤ', 'و'), ('إ', 'ا'), ('ء', 'ء'),
-];
+const ALEF_VARIANTS: [(char, char); 5] =
+    [('آ', 'ا'), ('أ', 'ا'), ('ؤ', 'و'), ('إ', 'ا'), ('ء', 'ء')];
 
 /// Ya variants to normalize.
-const YA_VARIANTS: [(char, char); 2] = [
-    ('ى', 'ي'), ('ی', 'ي'),
-];
+const YA_VARIANTS: [(char, char); 2] = [('ى', 'ي'), ('ی', 'ي')];
 
 /// Ta-marbuta variants to normalize.
-const TAMARBUTA_VARIANTS: [(char, char); 2] = [
-    ('ة', 'ه'), ('ۀ', 'ه'),
-];
+const TAMARBUTA_VARIANTS: [(char, char); 2] = [('ة', 'ه'), ('ۀ', 'ه')];
 
 /// Arabic stemmer — light rule-based stemmer for keyword extraction.
 /// Strips common Arabic suffixes and normalizes variants.
@@ -63,7 +56,11 @@ impl ArabicStemmer {
         // Try suffix stripping
         for (suffix, replacement) in &self.suffixes {
             if normalized.ends_with(suffix) && normalized.len() > suffix.len() {
-                return format!("{}{}", &normalized[..normalized.len() - suffix.len()], replacement);
+                return format!(
+                    "{}{}",
+                    &normalized[..normalized.len() - suffix.len()],
+                    replacement
+                );
             }
         }
         normalized
@@ -251,8 +248,15 @@ mod tests {
         ];
         for (input, _) in &cases {
             let result = normalize_arabic(input);
-            let result_stripped: String = result.chars().filter(|c| !c.is_ascii_punctuation()).collect();
-            assert!(!result_stripped.is_empty(), "input: {} produced empty", input);
+            let result_stripped: String = result
+                .chars()
+                .filter(|c| !c.is_ascii_punctuation())
+                .collect();
+            assert!(
+                !result_stripped.is_empty(),
+                "input: {} produced empty",
+                input
+            );
         }
         assert!(cases.len() >= 12);
     }
@@ -276,7 +280,16 @@ mod tests {
     #[test]
     fn stemmer_at_least_8_cases() {
         let stemmer = ArabicStemmer::new();
-        let cases = vec!["كتب", "مَرْحَبًا", "دَرَسَ", "كِتَاب", "مُدَرِّس", "مَدْرَسَة", "بِعْثَة", "جَامِعَة"];
+        let cases = vec![
+            "كتب",
+            "مَرْحَبًا",
+            "دَرَسَ",
+            "كِتَاب",
+            "مُدَرِّس",
+            "مَدْرَسَة",
+            "بِعْثَة",
+            "جَامِعَة",
+        ];
         assert!(cases.len() >= 8);
         for word in cases {
             let _ = stemmer.stem(word);

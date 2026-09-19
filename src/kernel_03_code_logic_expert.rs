@@ -250,7 +250,8 @@ fn execute_logic_module(module: &str, payload: &str) -> String {
         "bio.avian.fastpath" => match run_avian_genetics_fastpath(payload) {
             Ok(summary) => summary,
             Err(error) => format!("bio.avian.fastpath mmap load failed: {error}"),
-        },        "finance.math" => match run_finance_math_module(payload) {
+        },
+        "finance.math" => match run_finance_math_module(payload) {
             Ok(summary) => summary,
             Err(error) => format!("finance.math mmap load failed: {error}"),
         },

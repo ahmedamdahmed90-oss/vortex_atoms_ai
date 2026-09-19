@@ -120,7 +120,12 @@ impl VortexSampler {
             let tmp = logits.to_vec1::<f32>()?;
             scratch.clear();
             scratch.extend_from_slice(&tmp);
-            apply_repeat_penalty_window(scratch, generated_tokens, self.repeat_penalty, self.repeat_last_n);
+            apply_repeat_penalty_window(
+                scratch,
+                generated_tokens,
+                self.repeat_penalty,
+                self.repeat_last_n,
+            );
             return Ok(argmax_index(scratch) as u32);
         }
         // Non-greedy reuses scratch too, then falls back to penalized tensor path.
@@ -133,7 +138,11 @@ impl VortexSampler {
             let start = generated_tokens.len().saturating_sub(self.repeat_last_n);
             for &tok in &generated_tokens[start..] {
                 if let Some(v) = scratch.get_mut(tok as usize) {
-                    if *v > 0.0 { *v /= self.repeat_penalty; } else { *v *= self.repeat_penalty; }
+                    if *v > 0.0 {
+                        *v /= self.repeat_penalty;
+                    } else {
+                        *v *= self.repeat_penalty;
+                    }
                 }
             }
         }

@@ -5,39 +5,61 @@
 // Sources are allowlist-only. No URL outside the registry is ever fetched.
 // See docs/LEARNER.md for the honesty clause and compliance details.
 
-pub mod canary;
-pub mod compliance;
-pub mod pipeline;
-pub mod state;
-pub mod curiosity;
-pub mod compile;
 pub mod api;
-pub mod scheduler;
-pub mod embeddings;
-pub mod telemetry;
-pub mod eval;
 pub mod arabic;
+pub mod canary;
+pub mod compile;
+pub mod compliance;
+pub mod curiosity;
+pub mod embeddings;
+pub mod eval;
 pub mod governor;
+pub mod pipeline;
 pub mod report;
+pub mod scheduler;
+pub mod state;
+pub mod telemetry;
 
-pub use crate::learner::canary::{CanaryConfig, ActivationPhase, Watchdog, WatchdogStatus, RunTelemetry, check_allowlist_miss, AllowlistMiss};
-pub use crate::learner::compliance::{ComplianceChecker, ComplianceResult, LicenseRecord, seed_sources, SourceEntry};
-pub use crate::learner::state::{StateStore, UrlRecord, PageRecord, ChunkRecord, EmbedQueueEntry, EmbedPriority, compute_sha256, minhash_similarity};
-pub use crate::learner::pipeline::AcquisitionPipeline;
-pub use crate::learner::curiosity::CuriosityEngine;
+pub use crate::learner::api::{
+    GapSummary, LearnerApiState, LearnerStatus, LicenseEntry, LicensesTable, RunNowResponse,
+};
+pub use crate::learner::arabic::{
+    arabic_seed_sources, language_aware_fusion, normalize_arabic, ArabicStemmer, FusionWeights,
+    LanguageWeights,
+};
+pub use crate::learner::canary::{
+    check_allowlist_miss, ActivationPhase, AllowlistMiss, CanaryConfig, RunTelemetry, Watchdog,
+    WatchdogStatus,
+};
+pub use crate::learner::canary::{ActivationPhase as Phase, CanaryConfig as CanaryOverlay};
 pub use crate::learner::compile::FragmentCompiler;
-pub use crate::learner::api::{LearnerApiState, LearnerStatus, RunNowResponse, GapSummary, LicensesTable, LicenseEntry};
-pub use crate::learner::scheduler::{LearnerScheduler, SchedulerConfig};
+pub use crate::learner::compliance::{
+    seed_sources, ComplianceChecker, ComplianceResult, LicenseRecord, SourceEntry,
+};
+pub use crate::learner::curiosity::CuriosityEngine;
 pub use crate::learner::embeddings::EmbeddingsQueue;
-pub use crate::learner::telemetry::{RunLogBuffer, PersistentRunLog, RunLogEntry, LearnerMetrics, LearnerRunsResponse, TelemetryAccumulator};
-pub use crate::learner::eval::{EvalMetrics, EvalRun, RegressionResult, RetrievalResult, GoldenQuery, run_eval, check_regression, run_injection_probes, regression_banner};
-pub use crate::learner::arabic::{normalize_arabic, ArabicStemmer, LanguageWeights, FusionWeights, language_aware_fusion, arabic_seed_sources};
-pub use crate::learner::governor::{BudgetConfig, BudgetGovernor, DegradeLevel, KillSwitchState, SbomReport, TokenBucket, EvictionAudit, degrade_order_description};
-pub use crate::learner::report::{ReportGenerator, AutomatedReport, BudgetSummary, ReportPeriod};
-pub use crate::learner::canary::{CanaryConfig as CanaryOverlay, ActivationPhase as Phase};
+pub use crate::learner::eval::{
+    check_regression, regression_banner, run_eval, run_injection_probes, EvalMetrics, EvalRun,
+    GoldenQuery, RegressionResult, RetrievalResult,
+};
+pub use crate::learner::governor::{
+    degrade_order_description, BudgetConfig, BudgetGovernor, DegradeLevel, EvictionAudit,
+    KillSwitchState, SbomReport, TokenBucket,
+};
+pub use crate::learner::pipeline::AcquisitionPipeline;
+pub use crate::learner::report::{AutomatedReport, BudgetSummary, ReportGenerator, ReportPeriod};
+pub use crate::learner::scheduler::{LearnerScheduler, SchedulerConfig};
+pub use crate::learner::state::{
+    compute_sha256, minhash_similarity, ChunkRecord, EmbedPriority, EmbedQueueEntry, PageRecord,
+    StateStore, UrlRecord,
+};
+pub use crate::learner::telemetry::{
+    LearnerMetrics, LearnerRunsResponse, PersistentRunLog, RunLogBuffer, RunLogEntry,
+    TelemetryAccumulator,
+};
 
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub type ScheduleConfig = crate::learner::scheduler::SchedulerConfig;
 
@@ -77,14 +99,24 @@ pub struct CuriosityConfig {
 /// Returns the default local app data path for the learner state database.
 pub fn learner_state_path() -> PathBuf {
     std::env::var("LOCALAPPDATA")
-        .map(|p| PathBuf::from(p).join("vortex_atoms_ai").join("learner").join("state.db"))
+        .map(|p| {
+            PathBuf::from(p)
+                .join("vortex_atoms_ai")
+                .join("learner")
+                .join("state.db")
+        })
         .unwrap_or_else(|_| PathBuf::from("./learner-state.db"))
 }
 
 /// Returns the default directory for learner model downloads.
 pub fn learner_models_dir() -> PathBuf {
     std::env::var("LOCALAPPDATA")
-        .map(|p| PathBuf::from(p).join("vortex_atoms_ai").join("learner").join("models"))
+        .map(|p| {
+            PathBuf::from(p)
+                .join("vortex_atoms_ai")
+                .join("learner")
+                .join("models")
+        })
         .unwrap_or_else(|_| PathBuf::from("./learner-models"))
 }
 

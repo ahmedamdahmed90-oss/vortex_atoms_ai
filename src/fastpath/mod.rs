@@ -206,9 +206,8 @@ impl AvianGeneticsFastpath {
         let template = match self.match_cross(mode.as_str(), parents.0, parents.1) {
             Some(template) => template,
             None => {
-                return self.not_recognized(
-                    "cross did not match a canonical single-locus template",
-                );
+                return self
+                    .not_recognized("cross did not match a canonical single-locus template");
             }
         };
 
@@ -255,11 +254,7 @@ impl AvianGeneticsFastpath {
         if mutation.species.is_empty() {
             mutation.note.clone()
         } else {
-            format!(
-                "{} ({})",
-                mutation.note,
-                mutation.species.join(", ")
-            )
+            format!("{} ({})", mutation.note, mutation.species.join(", "))
         }
     }
 
@@ -284,7 +279,12 @@ impl AvianGeneticsFastpath {
         "autosomal_recessive".to_string()
     }
 
-    fn match_cross(&self, mode: &str, left: ParentPhenotype, right: ParentPhenotype) -> Option<OutcomeTemplate> {
+    fn match_cross(
+        &self,
+        mode: &str,
+        left: ParentPhenotype,
+        right: ParentPhenotype,
+    ) -> Option<OutcomeTemplate> {
         let templates: &[OutcomeTemplate] = match mode {
             "autosomal_dominant" => &self.manifest.templates.autosomal_dominant,
             "sex_linked_recessive" => &self.manifest.templates.sex_linked_recessive,
@@ -367,7 +367,11 @@ fn split_cross(lower: &str) -> Option<(&str, &str)> {
             if let Some(position) = lower.find(marker) {
                 let left = &lower[7..position].trim();
                 let right = &lower[position + marker.len()..];
-                let right = right.split(['?', '!', '.', ';', '\n']).next().unwrap_or("").trim();
+                let right = right
+                    .split(['?', '!', '.', ';', '\n'])
+                    .next()
+                    .unwrap_or("")
+                    .trim();
                 if !left.is_empty() && !right.is_empty() {
                     return Some((left, right));
                 }
@@ -377,7 +381,15 @@ fn split_cross(lower: &str) -> Option<(&str, &str)> {
     }
     // Prefer unambiguous separators before the bare 'x' fallback, because 'x'
     // also appears inside words such as "exact" or "sex-linked".
-    for marker in [" x ", "×", " crossed with ", " cross ", " bred with ", " paired with ", "x"] {
+    for marker in [
+        " x ",
+        "×",
+        " crossed with ",
+        " cross ",
+        " bred with ",
+        " paired with ",
+        "x",
+    ] {
         if let Some(position) = lower.find(marker) {
             let right_start = position + marker.len();
             let left = &lower[..position].trim();
@@ -385,8 +397,11 @@ fn split_cross(lower: &str) -> Option<(&str, &str)> {
             // Cut trailing sentence content after a bounded window so the second
             // parent phrase does not absorb unrelated words.
             let mut right = right.split(|character: char| {
-                character == '?' || character == '!' || character == '.'
-                    || character == ';' || character == '\n'
+                character == '?'
+                    || character == '!'
+                    || character == '.'
+                    || character == ';'
+                    || character == '\n'
             });
             let right = right.next().unwrap_or("").trim();
             if !left.is_empty() && !right.is_empty() {

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Ahmad Mansour — Vortex Atoms AI
 //! Inference backend trait — candle (default) vs ggml (feature-gated).
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::llm_config::LlmConfig;
@@ -148,10 +148,7 @@ impl InferenceBackend for GgmlBackend {
 }
 
 /// Factory: choose backend by config string (default "candle").
-pub fn backend_from_config(
-    backend: &str,
-    config: &LlmConfig,
-) -> Result<Box<dyn InferenceBackend>> {
+pub fn backend_from_config(backend: &str, config: &LlmConfig) -> Result<Box<dyn InferenceBackend>> {
     match backend {
         "ggml" => Ok(Box::new(GgmlBackend::load(config)?)),
         _ => Ok(Box::new(CandleBackend::load(config)?)),

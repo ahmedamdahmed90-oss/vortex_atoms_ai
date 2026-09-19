@@ -4,9 +4,9 @@
 // Canary mode runs a single source with strict limits. Watchdog monitors
 // budgets and auto-pauses on violation.
 
-use std::time::{Duration, Instant};
+use crate::learner::compliance::seed_sources;
 use serde::{Deserialize, Serialize};
-use crate::learner::compliance::{seed_sources};
+use std::time::{Duration, Instant};
 
 /// Canary overlay config — loaded via `--phase canary` flag.
 /// Does NOT mutate vortex.json.
@@ -94,9 +94,18 @@ impl Watchdog {
         Self::default()
     }
 
-    pub fn check(&mut self, queue_depth: usize, cpu_pct: f64, inference_held: bool, elapsed: Duration) -> WatchdogStatus {
+    pub fn check(
+        &mut self,
+        queue_depth: usize,
+        cpu_pct: f64,
+        inference_held: bool,
+        elapsed: Duration,
+    ) -> WatchdogStatus {
         if self.paused {
-            return WatchdogStatus { paused: true, reason: self.pause_reason.clone() };
+            return WatchdogStatus {
+                paused: true,
+                reason: self.pause_reason.clone(),
+            };
         }
 
         self.embed_queue_depth = queue_depth;
@@ -106,15 +115,24 @@ impl Watchdog {
 
         if queue_depth > self.queue_threshold && inference_held {
             self.pause("embed_queue_depth_exceeded".to_string());
-            return WatchdogStatus { paused: true, reason: self.pause_reason.clone() };
+            return WatchdogStatus {
+                paused: true,
+                reason: self.pause_reason.clone(),
+            };
         }
 
         if cpu_pct > self.cpu_threshold_pct && inference_held && elapsed > self.runtime_threshold {
             self.pause("learner_cpu_exceeded".to_string());
-            return WatchdogStatus { paused: true, reason: self.pause_reason.clone() };
+            return WatchdogStatus {
+                paused: true,
+                reason: self.pause_reason.clone(),
+            };
         }
 
-        WatchdogStatus { paused: false, reason: None }
+        WatchdogStatus {
+            paused: false,
+            reason: None,
+        }
     }
 
     fn pause(&mut self, reason: String) {
@@ -138,11 +156,13 @@ pub struct WatchdogStatus {
 /// Abort on allowlist miss — ANY URL outside the allowlist triggers CRITICAL audit.
 pub fn check_allowlist_miss(url: &str) -> Result<(), AllowlistMiss> {
     let sources = seed_sources();
-    let is_allowed = sources.iter().any(|s| {
-        url.contains(&s.id) && s.paths.iter().any(|p| url.contains(p))
-    });
+    let is_allowed = sources
+        .iter()
+        .any(|s| url.contains(&s.id) && s.paths.iter().any(|p| url.contains(p)));
     if !is_allowed {
-        Err(AllowlistMiss { url: url.to_string() })
+        Err(AllowlistMiss {
+            url: url.to_string(),
+        })
     } else {
         Ok(())
     }

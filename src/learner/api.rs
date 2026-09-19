@@ -3,11 +3,13 @@
 // KNOW-01 Section 8: Admin API for the learner module.
 // All endpoints are admin-gated and audited.
 
-use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
-use crate::learner::state::StateStore;
 use crate::learner::compliance::{seed_sources, SourceEntry};
-use crate::learner::telemetry::{PersistentRunLog, LearnerMetrics, LearnerRunsResponse, RunLogBuffer};
+use crate::learner::state::StateStore;
+use crate::learner::telemetry::{
+    LearnerMetrics, LearnerRunsResponse, PersistentRunLog, RunLogBuffer,
+};
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 
 /// Admin API state.
 #[derive(Clone)]
@@ -95,17 +97,51 @@ impl LearnerApiState {
             };
         }
         let total_ok: usize = guard.entries().iter().map(|e| e.telemetry.fetched_ok).sum();
-        let total_refused: usize = guard.entries().iter().map(|e| e.telemetry.refused_robots).sum();
-        let total_rate_limited: usize = guard.entries().iter().map(|e| e.telemetry.rate_limited).sum();
+        let total_refused: usize = guard
+            .entries()
+            .iter()
+            .map(|e| e.telemetry.refused_robots)
+            .sum();
+        let total_rate_limited: usize = guard
+            .entries()
+            .iter()
+            .map(|e| e.telemetry.rate_limited)
+            .sum();
         let total_bytes: usize = guard.entries().iter().map(|e| e.telemetry.bytes).sum();
         let total_pages: usize = guard.entries().iter().map(|e| e.telemetry.pages).sum();
-        let total_chunks: usize = guard.entries().iter().map(|e| e.telemetry.chunks_indexed).sum();
-        let avg_cache: f64 = guard.entries().iter().map(|e| e.telemetry.cache_hit_rate).sum::<f64>() / runs as f64;
-        let avg_queue: f64 = guard.entries().iter().map(|e| e.telemetry.embed_queue_depth as f64).sum::<f64>() / runs as f64;
-        let latest_watchdog = guard.entries().last().map(|e| {
-            if e.watchdog_status.paused { "paused".to_string() } else { "running".to_string() }
-        }).unwrap_or_else(|| "idle".to_string());
-        let latest_disk = guard.entries().last().map(|e| e.telemetry.disk_mb).unwrap_or(0.0);
+        let total_chunks: usize = guard
+            .entries()
+            .iter()
+            .map(|e| e.telemetry.chunks_indexed)
+            .sum();
+        let avg_cache: f64 = guard
+            .entries()
+            .iter()
+            .map(|e| e.telemetry.cache_hit_rate)
+            .sum::<f64>()
+            / runs as f64;
+        let avg_queue: f64 = guard
+            .entries()
+            .iter()
+            .map(|e| e.telemetry.embed_queue_depth as f64)
+            .sum::<f64>()
+            / runs as f64;
+        let latest_watchdog = guard
+            .entries()
+            .last()
+            .map(|e| {
+                if e.watchdog_status.paused {
+                    "paused".to_string()
+                } else {
+                    "running".to_string()
+                }
+            })
+            .unwrap_or_else(|| "idle".to_string());
+        let latest_disk = guard
+            .entries()
+            .last()
+            .map(|e| e.telemetry.disk_mb)
+            .unwrap_or(0.0);
         LearnerMetrics {
             total_runs: runs,
             total_fetched_ok: total_ok,
@@ -119,7 +155,11 @@ impl LearnerApiState {
             avg_embed_queue_depth: avg_queue,
             current_watchdog_state: latest_watchdog,
             current_disk_mb: latest_disk,
-            uptime_ms: guard.entries().last().map(|e| e.telemetry.wall_ms).unwrap_or(0),
+            uptime_ms: guard
+                .entries()
+                .last()
+                .map(|e| e.telemetry.wall_ms)
+                .unwrap_or(0),
         }
     }
 
@@ -161,7 +201,10 @@ impl LearnerApiState {
         let mut sources = self.sources.lock().unwrap();
         let pos = sources.iter().position(|s| s.id == source_id);
         match pos {
-            Some(i) => { sources.remove(i); Ok(()) }
+            Some(i) => {
+                sources.remove(i);
+                Ok(())
+            }
             None => Err(ApiError::SourceNotFound),
         }
     }
@@ -176,7 +219,9 @@ impl LearnerApiState {
     }
 
     pub fn get_licenses(&self) -> LicensesTable {
-        let entries: Vec<LicenseEntry> = self.store.open_gaps()
+        let entries: Vec<LicenseEntry> = self
+            .store
+            .open_gaps()
             .iter()
             .map(|_| LicenseEntry {
                 source_id: "wikipedia_en".to_string(),
@@ -186,12 +231,14 @@ impl LearnerApiState {
             })
             .collect();
         if entries.is_empty() {
-            return LicensesTable { entries: vec![LicenseEntry {
-                source_id: "wikipedia_en".to_string(),
-                license: "CC-BY-SA-4.0".to_string(),
-                chunk_count: 0,
-                attribution_required: true,
-            }] };
+            return LicensesTable {
+                entries: vec![LicenseEntry {
+                    source_id: "wikipedia_en".to_string(),
+                    license: "CC-BY-SA-4.0".to_string(),
+                    chunk_count: 0,
+                    attribution_required: true,
+                }],
+            };
         }
         LicensesTable { entries }
     }
@@ -221,9 +268,9 @@ impl std::error::Error for ApiError {}
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    
-    use crate::learner::telemetry::{RunLogEntry, PersistentRunLog};
+
     use crate::learner::canary::{RunTelemetry, WatchdogStatus};
+    use crate::learner::telemetry::{PersistentRunLog, RunLogEntry};
 
     fn make_api() -> LearnerApiState {
         let store = StateStore::open(&PathBuf::from("/tmp/api_test")).unwrap();
@@ -255,7 +302,10 @@ mod tests {
             run_id: "test_run".to_string(),
             timestamp: 1000,
             telemetry: make_telemetry(),
-            watchdog_status: WatchdogStatus { paused: false, reason: None },
+            watchdog_status: WatchdogStatus {
+                paused: false,
+                reason: None,
+            },
             phase: "canary".to_string(),
         }
     }
@@ -338,7 +388,10 @@ mod tests {
     #[test]
     fn remove_missing_source_fails() {
         let mut api = make_api();
-        assert!(matches!(api.remove_source("nonexistent"), Err(ApiError::SourceNotFound)));
+        assert!(matches!(
+            api.remove_source("nonexistent"),
+            Err(ApiError::SourceNotFound)
+        ));
     }
 
     #[test]

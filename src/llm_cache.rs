@@ -42,7 +42,11 @@ impl VortexCache {
         Self {
             total_tokens_in_cache: 0,
             max_seq_len,
-            kv_cache_window: if kv_prefix_cache { kv_cache_window } else { None },
+            kv_cache_window: if kv_prefix_cache {
+                kv_cache_window
+            } else {
+                None
+            },
             prefix_kv_cache: HashMap::new(),
         }
     }
@@ -116,7 +120,8 @@ impl VortexCache {
             prefix_len,
             prefix_hash: hash,
         };
-        self.prefix_kv_cache.insert(hash, (prefix_tokens.to_vec(), state));
+        self.prefix_kv_cache
+            .insert(hash, (prefix_tokens.to_vec(), state));
     }
 
     /// Check if we have a cached prefix KV for the given prefix.
@@ -128,6 +133,8 @@ impl VortexCache {
     /// Get the cached prefix length if available.
     pub fn get_cached_prefix_len(&self, prefix_tokens: &[u32]) -> Option<usize> {
         let hash = Self::hash_prefix(prefix_tokens);
-        self.prefix_kv_cache.get(&hash).map(|(_, state)| state.prefix_len)
+        self.prefix_kv_cache
+            .get(&hash)
+            .map(|(_, state)| state.prefix_len)
     }
 }

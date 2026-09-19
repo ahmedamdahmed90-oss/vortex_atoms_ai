@@ -251,7 +251,8 @@ impl LlmInference {
         // The first message is always the system prompt.
         // Tokenize just the system prompt for prefix KV caching.
         let system_msg = &messages[0];
-        let system_text = format_chat_history(&self.template, std::slice::from_ref(system_msg), None);
+        let system_text =
+            format_chat_history(&self.template, std::slice::from_ref(system_msg), None);
         self.tokenize(&system_text).unwrap_or_default()
     }
 
@@ -304,11 +305,7 @@ impl LlmInference {
 
     /// Speculative generation step: draft tokens and verify them.
     /// Returns (accepted_tokens, should_continue_speculative).
-    fn speculative_step(
-        &mut self,
-        context: &[u32],
-        max_draft: usize,
-    ) -> Result<(Vec<u32>, bool)> {
+    fn speculative_step(&mut self, context: &[u32], max_draft: usize) -> Result<(Vec<u32>, bool)> {
         if let Some(decoder) = &mut self.speculative_decoder {
             // Get logits for the full sequence (context + drafted)
             let drafted = decoder.drafter.draft(context, max_draft);
@@ -386,7 +383,8 @@ impl LlmInference {
 
         // Reset cache, preserving prefix KV if available.
         if use_prefix_kv {
-            self.cache.reset_with_prefix(&mut self.model, &prefix_tokens);
+            self.cache
+                .reset_with_prefix(&mut self.model, &prefix_tokens);
             self.cached_prefix_tokens = Some(prefix_tokens.clone());
         } else {
             self.cache.reset(&mut self.model, None::<&[u32]>);
@@ -412,7 +410,8 @@ impl LlmInference {
 
         // Store prefix KV after prefill if prefix caching enabled and this is a new prefix.
         if self.kv_prefix_cache && !use_prefix_kv && !prefix_tokens.is_empty() {
-            self.cache.store_prefix_kv(&prefix_tokens, prefix_tokens.len());
+            self.cache
+                .store_prefix_kv(&prefix_tokens, prefix_tokens.len());
             self.cached_prefix_tokens = Some(prefix_tokens);
         }
 
@@ -420,7 +419,8 @@ impl LlmInference {
         let mut generated = 0usize;
         // Ensure logits scratch has vocab capacity once (reuse, no per-token alloc).
         if self.logits_scratch.capacity() < 32000 {
-            self.logits_scratch.reserve(32000 - self.logits_scratch.capacity());
+            self.logits_scratch
+                .reserve(32000 - self.logits_scratch.capacity());
         }
 
         while generated < max {
@@ -450,7 +450,11 @@ impl LlmInference {
                     for &token in replay_tokens {
                         if self.layer_prefetch {
                             if let Some(ref mmap) = self.mmap {
-                                crate::perf_topology::prefetch_next_layer(mmap, pos * 4096, 1 << 20);
+                                crate::perf_topology::prefetch_next_layer(
+                                    mmap,
+                                    pos * 4096,
+                                    1 << 20,
+                                );
                             }
                         }
                         let input = Tensor::new(&[token], &self.device)?.unsqueeze(0)?;
@@ -469,11 +473,13 @@ impl LlmInference {
                 }
             }
 
-// Speculative decoding: try to draft and verify multiple tokens at once.
+            // Speculative decoding: try to draft and verify multiple tokens at once.
             if self.speculative_enabled {
                 if let Some(decoder) = &mut self.speculative_decoder {
                     let max_draft = decoder.max_draft_tokens;
-                    if let Ok((accepted, _continue_spec)) = self.speculative_step(&all_tokens, max_draft) {
+                    if let Ok((accepted, _continue_spec)) =
+                        self.speculative_step(&all_tokens, max_draft)
+                    {
                         for &tok in &accepted {
                             all_tokens.push(tok);
                             generated += 1;
@@ -501,7 +507,9 @@ impl LlmInference {
             let logits = logits.squeeze(0)?.squeeze(0)?;
 
             // Greedy fast path is pure argmax (1.3) with reused scratch (1.2).
-            let next_token = self.sampler.sample_with_scratch(&logits, &all_tokens, &mut self.logits_scratch)?;
+            let next_token =
+                self.sampler
+                    .sample_with_scratch(&logits, &all_tokens, &mut self.logits_scratch)?;
             all_tokens.push(next_token);
             generated += 1;
             pos += 1;
@@ -566,7 +574,8 @@ impl LlmInference {
 
         // Reset cache, preserving prefix KV if available.
         if use_prefix_kv {
-            self.cache.reset_with_prefix(&mut self.model, &prefix_tokens);
+            self.cache
+                .reset_with_prefix(&mut self.model, &prefix_tokens);
             self.cached_prefix_tokens = Some(prefix_tokens.clone());
         } else {
             self.cache.reset(&mut self.model, None::<&[u32]>);
@@ -593,14 +602,16 @@ impl LlmInference {
 
         // Store prefix KV after prefill if prefix caching enabled and this is a new prefix.
         if self.kv_prefix_cache && !use_prefix_kv && !prefix_tokens.is_empty() {
-            self.cache.store_prefix_kv(&prefix_tokens, prefix_tokens.len());
+            self.cache
+                .store_prefix_kv(&prefix_tokens, prefix_tokens.len());
             self.cached_prefix_tokens = Some(prefix_tokens);
         }
 
         let mut output_stream = TokenOutputStream::new(self.tokenizer.clone());
         let mut generated = 0usize;
         if self.logits_scratch.capacity() < 32000 {
-            self.logits_scratch.reserve(32000 - self.logits_scratch.capacity());
+            self.logits_scratch
+                .reserve(32000 - self.logits_scratch.capacity());
         }
         // Tokenizer decode is batched per WS coalesce window (50ms, §6.1):
         // we still push per token but the WS layer coalesces; no String
@@ -627,7 +638,11 @@ impl LlmInference {
                     for &token in replay_tokens {
                         if self.layer_prefetch {
                             if let Some(ref mmap) = self.mmap {
-                                crate::perf_topology::prefetch_next_layer(mmap, pos * 4096, 1 << 20);
+                                crate::perf_topology::prefetch_next_layer(
+                                    mmap,
+                                    pos * 4096,
+                                    1 << 20,
+                                );
                             }
                         }
                         let input = Tensor::new(&[token], &self.device)?.unsqueeze(0)?;
@@ -649,7 +664,9 @@ impl LlmInference {
             let logits = self.model.forward(&input, pos)?;
             let logits = logits.squeeze(0)?.squeeze(0)?;
 
-            let next_token = self.sampler.sample_with_scratch(&logits, &all_tokens, &mut self.logits_scratch)?;
+            let next_token =
+                self.sampler
+                    .sample_with_scratch(&logits, &all_tokens, &mut self.logits_scratch)?;
             all_tokens.push(next_token);
             generated += 1;
             pos += 1;

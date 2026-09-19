@@ -3,9 +3,9 @@
 // KNOW-01 Section 2: Scheduler.
 // tokio interval + off-peak window + max_runtime; early-exit on budget.
 
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::time::SystemTime;
-use serde::{Deserialize, Serialize};
 
 /// Scheduler configuration.
 #[derive(Clone, Debug, Serialize, Deserialize)]

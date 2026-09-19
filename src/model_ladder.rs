@@ -12,7 +12,7 @@
 //! currently-loaded engine), and every auto-selection is audit-logged by
 //! the caller just like a manual swap would be.
 
-use crate::llm_download::{MODEL_ECO, MODEL_Q4_0, MODELS_1_5B, MODELS_3B, ModelDefinition};
+use crate::llm_download::{ModelDefinition, MODELS_1_5B, MODELS_3B, MODEL_ECO, MODEL_Q4_0};
 use crate::perf_topology::CpuTier;
 
 /// A single rung on the model ladder.
@@ -201,12 +201,18 @@ mod tests {
 
     #[test]
     fn routing_disabled_is_fail_closed() {
-        assert_eq!(select_rung(CpuTier::Standard, 9_000, false, 4096).map(|r| r.id), None);
+        assert_eq!(
+            select_rung(CpuTier::Standard, 9_000, false, 4096).map(|r| r.id),
+            None
+        );
     }
 
     #[test]
     fn oversize_prompt_is_rejected() {
-        assert_eq!(select_rung(CpuTier::Standard, 10_000, true, 4096).map(|r| r.id), None);
+        assert_eq!(
+            select_rung(CpuTier::Standard, 10_000, true, 4096).map(|r| r.id),
+            None
+        );
     }
 
     #[test]

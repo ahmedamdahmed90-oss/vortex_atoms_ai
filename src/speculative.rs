@@ -1,6 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 
 /// Trait for speculative token drafters.
 /// Drafters propose candidate tokens that the main model verifies.
@@ -60,7 +60,12 @@ impl NGramDrafter {
                 continue;
             }
             let hash = Self::hash_context(context);
-            *self.ngrams.entry(hash).or_default().entry(next).or_insert(0) += 1;
+            *self
+                .ngrams
+                .entry(hash)
+                .or_default()
+                .entry(next)
+                .or_insert(0) += 1;
             *self.global_freq.entry(next).or_insert(0) += 1;
         }
     }
@@ -76,7 +81,9 @@ impl NGramDrafter {
     fn get_candidates(&self, context: &[u32]) -> Vec<(u32, f32)> {
         if context.len() < self.n {
             // Fallback to global frequency
-            let mut candidates: Vec<_> = self.global_freq.iter()
+            let mut candidates: Vec<_> = self
+                .global_freq
+                .iter()
                 .map(|(&tok, &count)| (tok, count as f32))
                 .collect();
             candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -85,7 +92,8 @@ impl NGramDrafter {
 
         let hash = Self::hash_context(&context[context.len() - self.n..]);
         if let Some(next_map) = self.ngrams.get(&hash) {
-            let mut candidates: Vec<_> = next_map.iter()
+            let mut candidates: Vec<_> = next_map
+                .iter()
                 .map(|(&tok, &count)| (tok, count as f32))
                 .collect();
             candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -93,7 +101,9 @@ impl NGramDrafter {
         }
 
         // No n-gram for this context, fallback to global
-        let mut candidates: Vec<_> = self.global_freq.iter()
+        let mut candidates: Vec<_> = self
+            .global_freq
+            .iter()
             .map(|(&tok, &count)| (tok, count as f32))
             .collect();
         candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -109,8 +119,12 @@ impl NGramDrafter {
             return candidates[0].0; // Greedy
         }
         // Softmax with temperature
-        let max_logit = candidates.iter().map(|(_, p)| *p).fold(f32::NEG_INFINITY, f32::max);
-        let sum: f32 = candidates.iter()
+        let max_logit = candidates
+            .iter()
+            .map(|(_, p)| *p)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let sum: f32 = candidates
+            .iter()
             .map(|(_, p)| ((p - max_logit) / self.temperature).exp())
             .sum();
         let mut r = sum * self.random_f32();
@@ -255,7 +269,11 @@ impl SpeculativeDecoder {
     }
 
     pub fn acceptance_rate(&self) -> f32 {
-        if self.total_drafted == 0 { 0.0 } else { self.total_accepted as f32 / self.total_drafted as f32 }
+        if self.total_drafted == 0 {
+            0.0
+        } else {
+            self.total_accepted as f32 / self.total_drafted as f32
+        }
     }
 
     pub fn reset(&mut self) {

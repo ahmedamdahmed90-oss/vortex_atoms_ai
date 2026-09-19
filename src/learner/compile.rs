@@ -3,9 +3,9 @@
 // KNOW-01 Section 6: Hot Fragment Compilation.
 // Weekly or on-demand: compiles top-frequency domain clusters into .tcz fragments.
 
+use crate::learner::state::StateStore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use crate::learner::state::StateStore;
 
 /// Fragment builder that compiles domain clusters into .tcz fragments.
 pub struct FragmentCompiler {
@@ -46,7 +46,10 @@ impl FragmentCompiler {
         let source_ids = vec!["wikipedia_en".to_string()];
         let licenses = vec!["CC-BY-SA-4.0".to_string()];
         let total_bytes = 0;
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
 
         let manifest = FragmentManifest {
             fragment_id: format!("{domain}-{now}"),

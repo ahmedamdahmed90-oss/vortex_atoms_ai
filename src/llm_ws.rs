@@ -41,9 +41,7 @@ pub enum WsEvent {
     #[serde(rename = "ready")]
     Ready {},
     #[serde(rename = "batch")]
-    Batch {
-        events: Vec<WsEvent>,
-    },
+    Batch { events: Vec<WsEvent> },
 }
 
 pub async fn ws_handler(
@@ -256,7 +254,6 @@ async fn handle_ws_message(
 
             let mut batch: Vec<WsEvent> = Vec::new();
             let mut flushed = std::time::Instant::now();
-
 
             loop {
                 let window_remaining = coalesce

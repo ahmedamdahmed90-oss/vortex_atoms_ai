@@ -122,7 +122,10 @@ fn main() {
         Err(e) => {
             eprintln!("[API] {e}");
             // Notify the first instance via tray before exiting with code 2.
-            if let Err(e) = vortex_atoms_ai::system_tray::tray_flash("Vortex Atoms AI", "another instance is already running") {
+            if let Err(e) = vortex_atoms_ai::system_tray::tray_flash(
+                "Vortex Atoms AI",
+                "another instance is already running",
+            ) {
                 eprintln!("[API] tray flash failed: {e}");
             }
             std::process::exit(2);

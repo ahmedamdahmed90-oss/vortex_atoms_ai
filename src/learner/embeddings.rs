@@ -3,9 +3,9 @@
 // KNOW-01 Section 3: Embeddings Queue & Cache.
 // Batch=1, priority queue, CPU guard yielding to inference semaphore.
 
+use crate::learner::state::EmbedPriority;
 use std::collections::BinaryHeap;
 use std::sync::{Arc, Mutex};
-use crate::learner::state::EmbedPriority;
 
 /// Embedding priority queue entry for the binary heap.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -17,7 +17,9 @@ pub struct QueueItem {
 
 impl Ord for QueueItem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.priority.cmp(&other.priority).reverse()
+        self.priority
+            .cmp(&other.priority)
+            .reverse()
             .then_with(|| self.enqueued_at.cmp(&other.enqueued_at))
     }
 }
@@ -107,12 +109,16 @@ mod tests {
     fn priority_queue_orders_curiosity_first() {
         let mut q = EmbeddingsQueue::new();
         q.enqueue(QueueItem {
-            priority: EmbeddingsQueue::priority_to_i8(crate::learner::state::EmbedPriority::FreshPage),
+            priority: EmbeddingsQueue::priority_to_i8(
+                crate::learner::state::EmbedPriority::FreshPage,
+            ),
             chunk_id: "fresh".to_string(),
             enqueued_at: 100,
         });
         q.enqueue(QueueItem {
-            priority: EmbeddingsQueue::priority_to_i8(crate::learner::state::EmbedPriority::CuriosityGap),
+            priority: EmbeddingsQueue::priority_to_i8(
+                crate::learner::state::EmbedPriority::CuriosityGap,
+            ),
             chunk_id: "curiosity".to_string(),
             enqueued_at: 50,
         });
@@ -137,8 +143,14 @@ mod tests {
 
     #[test]
     fn priority_values() {
-        assert_eq!(EmbeddingsQueue::priority_to_i8(EmbedPriority::CuriosityGap), 1);
-        assert_eq!(EmbeddingsQueue::priority_to_i8(EmbedPriority::MissRequeue), 2);
+        assert_eq!(
+            EmbeddingsQueue::priority_to_i8(EmbedPriority::CuriosityGap),
+            1
+        );
+        assert_eq!(
+            EmbeddingsQueue::priority_to_i8(EmbedPriority::MissRequeue),
+            2
+        );
         assert_eq!(EmbeddingsQueue::priority_to_i8(EmbedPriority::FreshPage), 3);
     }
 

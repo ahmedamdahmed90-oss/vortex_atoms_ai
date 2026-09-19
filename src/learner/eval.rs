@@ -103,7 +103,10 @@ pub fn rrf_score(rank: usize, k: usize) -> f64 {
 }
 
 /// Performs evaluation on golden queries and returns metrics.
-pub fn evaluate(golden_queries: &[GoldenQuery], retrieval_results: &[RetrievalResult]) -> EvalMetrics {
+pub fn evaluate(
+    golden_queries: &[GoldenQuery],
+    retrieval_results: &[RetrievalResult],
+) -> EvalMetrics {
     let mrr = compute_mrr_at_5(retrieval_results);
     let hit = compute_hit_at_1(retrieval_results);
     EvalMetrics {
@@ -249,7 +252,7 @@ mod tests {
             make_retrieval_result("test_01", true, 1),
             make_retrieval_result("test_02", false, 2),
         ];
-let metrics = evaluate(std::slice::from_ref(&golden), &results);
+        let metrics = evaluate(std::slice::from_ref(&golden), &results);
         assert_eq!(metrics.total_queries, 1);
         assert!(metrics.mrr_at_5 > 0.0);
         assert!(metrics.hit_at_1 > 0.0);

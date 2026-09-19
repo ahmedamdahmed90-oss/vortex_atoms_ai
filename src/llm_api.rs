@@ -347,7 +347,9 @@ pub fn create_router(state: Arc<RwLock<ApiState>>, sec: Arc<SecurityState>) -> R
             sec,
             crate::security::auth_middleware,
         ))
-        .layer(middleware::from_fn(crate::security::security_headers_middleware))
+        .layer(middleware::from_fn(
+            crate::security::security_headers_middleware,
+        ))
         .layer(cors)
 }
 
@@ -391,7 +393,12 @@ async fn handle_generate(
     } else {
         None
     };
-    if let Err(msg) = route_model_hint(&mut engine, &sec, &peer.to_string(), req.model.as_deref().or(rung_hint.as_deref())) {
+    if let Err(msg) = route_model_hint(
+        &mut engine,
+        &sec,
+        &peer.to_string(),
+        req.model.as_deref().or(rung_hint.as_deref()),
+    ) {
         return bad_request(msg).into_response();
     }
     if let Some(t) = temperature {
@@ -495,7 +502,12 @@ async fn handle_chat(
     } else {
         None
     };
-    if let Err(msg) = route_model_hint(&mut engine, &sec, &peer.to_string(), req.model.as_deref().or(rung_hint.as_deref())) {
+    if let Err(msg) = route_model_hint(
+        &mut engine,
+        &sec,
+        &peer.to_string(),
+        req.model.as_deref().or(rung_hint.as_deref()),
+    ) {
         return bad_request(msg).into_response();
     }
     if let Some(t) = temperature {
@@ -597,7 +609,9 @@ async fn handle_health(
                 let fastpath_ms = {
                     let fp = crate::fastpath::AvianGeneticsFastpath::embedded();
                     let t0 = std::time::Instant::now();
-                    let _ = fp.answer("cross a split budgie with a visual budgie").to_kernel_summary();
+                    let _ = fp
+                        .answer("cross a split budgie with a visual budgie")
+                        .to_kernel_summary();
                     t0.elapsed().as_secs_f64() * 1000.0
                 };
                 PerfInfo {
@@ -605,7 +619,11 @@ async fn handle_health(
                     tier: tier.as_str().to_string(),
                     tier_model: defaults.model.to_string(),
                     tier_max_context: defaults.max_context,
-                    infer_threads: crate::perf_topology::resolve_infer_threads(None, None, crate::perf_topology::auto_cpu_count()),
+                    infer_threads: crate::perf_topology::resolve_infer_threads(
+                        None,
+                        None,
+                        crate::perf_topology::auto_cpu_count(),
+                    ),
                     async_workers: crate::perf_topology::DEFAULT_ASYNC_WORKERS,
                     prefault_enabled: true,
                     compiled_features: crate::perf_topology::compiled_features(),
@@ -613,7 +631,11 @@ async fn handle_health(
                     fastpath_avg_ms: fastpath_ms,
                 }
             },
-            at_rest: if cfg!(windows) { "encrypted".to_string() } else { "unencrypted-dev".to_string() },
+            at_rest: if cfg!(windows) {
+                "encrypted".to_string()
+            } else {
+                "unencrypted-dev".to_string()
+            },
         }),
     )
         .into_response()
@@ -638,7 +660,9 @@ async fn handle_bench(
     let fastpath_ms = {
         let fp = crate::fastpath::AvianGeneticsFastpath::embedded();
         let t0 = std::time::Instant::now();
-        let _ = fp.answer("cross a split budgie with a visual budgie").to_kernel_summary();
+        let _ = fp
+            .answer("cross a split budgie with a visual budgie")
+            .to_kernel_summary();
         t0.elapsed().as_secs_f64() * 1000.0
     };
     let cache_hit_ms = 0.3; // semantic cache (HotTokenCache Arc clone) — sub-ms
@@ -660,7 +684,11 @@ async fn handle_bench(
             peak_rss_mb: None,
             fastpath_ms,
             cache_hit_ms,
-            compatible: crate::perf_topology::evaluate_probe(crate::perf_topology::CpuSku::Sse41, &crate::perf_topology::host_features()).compatible,
+            compatible: crate::perf_topology::evaluate_probe(
+                crate::perf_topology::CpuSku::Sse41,
+                &crate::perf_topology::host_features(),
+            )
+            .compatible,
             notes: "SKU sse41 — build via tools/build_skus.ps1".to_string(),
         },
         BenchEntry {
@@ -670,8 +698,16 @@ async fn handle_bench(
             peak_rss_mb: None,
             fastpath_ms,
             cache_hit_ms,
-            compatible: crate::perf_topology::evaluate_probe(crate::perf_topology::CpuSku::Avx1, &crate::perf_topology::host_features()).compatible,
-            notes: format!("current sku={} tier={}", sku_current.as_str(), tier.as_str()),
+            compatible: crate::perf_topology::evaluate_probe(
+                crate::perf_topology::CpuSku::Avx1,
+                &crate::perf_topology::host_features(),
+            )
+            .compatible,
+            notes: format!(
+                "current sku={} tier={}",
+                sku_current.as_str(),
+                tier.as_str()
+            ),
         },
     ];
     let _ = guard.knowledge.len(); // keep guard alive for knowledge_chunks if needed later
@@ -1440,33 +1476,33 @@ async fn handle_list_models(
             },
             models: {
                 let mut models_all = vec![
-                MatrixModelJson {
-                    name: "default".to_string(),
-                    repo: DEFAULT_MODEL_REPO.to_string(),
-                    file: DEFAULT_MODEL_FILE.to_string(),
-                    architecture: "qwen2".to_string(),
-                    size_params: crate::llm_config::model_sizes::P0_5B,
-                    quant: "Q4_K_M".to_string(),
-                    max_seq_len: 4096,
-                },
-                MatrixModelJson {
-                    name: "eco".to_string(),
-                    repo: MODEL_ECO.repo.to_string(),
-                    file: MODEL_ECO.gguf_file.to_string(),
-                    architecture: MODEL_ECO.arch.to_string(),
-                    size_params: MODEL_ECO.size_params,
-                    quant: MODEL_ECO.quant.to_string(),
-                    max_seq_len: MODEL_ECO.max_seq_len,
-                },
-                MatrixModelJson {
-                    name: "q4_0".to_string(),
-                    repo: MODEL_Q4_0.repo.to_string(),
-                    file: MODEL_Q4_0.gguf_file.to_string(),
-                    architecture: MODEL_Q4_0.arch.to_string(),
-                    size_params: MODEL_Q4_0.size_params,
-                    quant: MODEL_Q4_0.quant.to_string(),
-                    max_seq_len: MODEL_Q4_0.max_seq_len,
-                },
+                    MatrixModelJson {
+                        name: "default".to_string(),
+                        repo: DEFAULT_MODEL_REPO.to_string(),
+                        file: DEFAULT_MODEL_FILE.to_string(),
+                        architecture: "qwen2".to_string(),
+                        size_params: crate::llm_config::model_sizes::P0_5B,
+                        quant: "Q4_K_M".to_string(),
+                        max_seq_len: 4096,
+                    },
+                    MatrixModelJson {
+                        name: "eco".to_string(),
+                        repo: MODEL_ECO.repo.to_string(),
+                        file: MODEL_ECO.gguf_file.to_string(),
+                        architecture: MODEL_ECO.arch.to_string(),
+                        size_params: MODEL_ECO.size_params,
+                        quant: MODEL_ECO.quant.to_string(),
+                        max_seq_len: MODEL_ECO.max_seq_len,
+                    },
+                    MatrixModelJson {
+                        name: "q4_0".to_string(),
+                        repo: MODEL_Q4_0.repo.to_string(),
+                        file: MODEL_Q4_0.gguf_file.to_string(),
+                        architecture: MODEL_Q4_0.arch.to_string(),
+                        size_params: MODEL_Q4_0.size_params,
+                        quant: MODEL_Q4_0.quant.to_string(),
+                        max_seq_len: MODEL_Q4_0.max_seq_len,
+                    },
                 ];
                 if model_routing {
                     models_all.extend(
@@ -1749,7 +1785,10 @@ async fn handle_metrics(
     );
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         text,
     )
         .into_response()
@@ -1798,10 +1837,7 @@ async fn handle_admin_performance_post(
     let sec = guard.security.clone();
     drop(guard);
     let path = crate::vortex_config::VortexConfig::config_path();
-    match crate::vortex_config::VortexConfig::update_performance(
-        &path,
-        req.ws_coalesce_ms,
-    ) {
+    match crate::vortex_config::VortexConfig::update_performance(&path, req.ws_coalesce_ms) {
         Ok(perf) => {
             crate::security::audit_log(
                 &sec,

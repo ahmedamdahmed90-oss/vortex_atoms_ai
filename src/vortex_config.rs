@@ -195,20 +195,14 @@ impl VortexConfig {
             .and_then(|p| p.as_object_mut())
             .ok_or_else(|| "missing \"performance\" table".to_string())?;
         if let Some(v) = ws_coalesce_ms {
-            table.insert(
-                "ws_coalesce_ms".to_string(),
-                serde_json::Value::from(v),
-            );
+            table.insert("ws_coalesce_ms".to_string(), serde_json::Value::from(v));
         }
         let perf: PerformanceConfig =
             serde_json::from_value(serde_json::Value::Object(table.clone()))
                 .map_err(|e| format!("resulting performance table invalid: {e}"))?;
         let tmp = path.with_extension("json.tmp");
-        std::fs::write(
-            &tmp,
-            serde_json::to_string_pretty(&doc).unwrap_or_default(),
-        )
-        .map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
+        std::fs::write(&tmp, serde_json::to_string_pretty(&doc).unwrap_or_default())
+            .map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
         std::fs::rename(&tmp, path)
             .map_err(|e| format!("cannot replace {}: {e}", path.display()))?;
         Ok(perf)

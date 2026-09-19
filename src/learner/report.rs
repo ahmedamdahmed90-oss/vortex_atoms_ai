@@ -4,14 +4,16 @@
 // Generates automated monthly/quarterly reports from learner telemetry.
 // Reports are JSON and markdown; persisted to learner_reports/ directory.
 
-use std::path::{Path, PathBuf};
-use std::fs::OpenOptions;
-use std::io::Write;
-use serde::{Deserialize, Serialize};
-use crate::learner::telemetry::{LearnerMetrics, PersistentRunLog};
-use crate::learner::governor::{BudgetGovernor, BudgetConfig, DegradeLevel, KillSwitchState, SbomReport};
 use crate::learner::compliance::SourceEntry;
 use crate::learner::eval::EvalMetrics;
+use crate::learner::governor::{
+    BudgetConfig, BudgetGovernor, DegradeLevel, KillSwitchState, SbomReport,
+};
+use crate::learner::telemetry::{LearnerMetrics, PersistentRunLog};
+use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 /// Automated report generator for learner runs.
 #[derive(Clone, Debug)]
@@ -91,7 +93,8 @@ impl ReportGenerator {
             metrics.current_disk_mb / 1024.0,
         );
 
-        let kill_switch = BudgetGovernor::new(self.budget.clone()).kill_switch_state(false, false, false);
+        let kill_switch =
+            BudgetGovernor::new(self.budget.clone()).kill_switch_state(false, false, false);
 
         let budget_summary = BudgetSummary {
             disk_gb: self.budget.disk_gb,
@@ -142,13 +145,16 @@ impl ReportGenerator {
             .flat_map(|r| r.mrr_trend.clone())
             .collect();
 
-        let eval_metrics = monthly_reports
-            .iter()
-            .find_map(|r| r.eval_metrics.clone());
+        let eval_metrics = monthly_reports.iter().find_map(|r| r.eval_metrics.clone());
 
-        let sbom = BudgetGovernor::generate_sbom(sources, &[total_chunks], total_bytes as f64 / 1024.0 / 1024.0);
+        let sbom = BudgetGovernor::generate_sbom(
+            sources,
+            &[total_chunks],
+            total_bytes as f64 / 1024.0 / 1024.0,
+        );
 
-        let kill_switch = BudgetGovernor::new(self.budget.clone()).kill_switch_state(false, false, false);
+        let kill_switch =
+            BudgetGovernor::new(self.budget.clone()).kill_switch_state(false, false, false);
 
         let budget_summary = BudgetSummary {
             disk_gb: self.budget.disk_gb,
@@ -198,32 +204,70 @@ impl ReportGenerator {
         md.push_str(&format!("**Period:** {:?}\n\n", report.period));
 
         md.push_str("## Budget Summary\n\n");
-        md.push_str(&format!("- Disk budget: {:.1} GB\n", report.budget_summary.disk_gb));
-        md.push_str(&format!("- Chunk cap: {}\n", report.budget_summary.chunk_cap));
-        md.push_str(&format!("- Bytes/day: {}\n", report.budget_summary.bytes_per_day));
-        md.push_str(&format!("- CPU quota: {}\n", report.budget_summary.embed_cpu_quota));
-        md.push_str(&format!("- Eviction policy: {}\n", report.budget_summary.eviction_policy));
-        md.push_str(&format!("- Total evictions: {}\n\n", report.budget_summary.total_evictions));
+        md.push_str(&format!(
+            "- Disk budget: {:.1} GB\n",
+            report.budget_summary.disk_gb
+        ));
+        md.push_str(&format!(
+            "- Chunk cap: {}\n",
+            report.budget_summary.chunk_cap
+        ));
+        md.push_str(&format!(
+            "- Bytes/day: {}\n",
+            report.budget_summary.bytes_per_day
+        ));
+        md.push_str(&format!(
+            "- CPU quota: {}\n",
+            report.budget_summary.embed_cpu_quota
+        ));
+        md.push_str(&format!(
+            "- Eviction policy: {}\n",
+            report.budget_summary.eviction_policy
+        ));
+        md.push_str(&format!(
+            "- Total evictions: {}\n\n",
+            report.budget_summary.total_evictions
+        ));
 
         md.push_str("## Kill Switch State\n\n");
-        md.push_str(&format!("- Config paused: {}\n", report.kill_switch_state.config_paused));
-        md.push_str(&format!("- Admin paused: {}\n", report.kill_switch_state.admin_paused));
-        md.push_str(&format!("- CLI paused: {}\n", report.kill_switch_state.cli_paused));
-        md.push_str(&format!("- Is paused: {}\n\n", report.kill_switch_state.is_paused));
+        md.push_str(&format!(
+            "- Config paused: {}\n",
+            report.kill_switch_state.config_paused
+        ));
+        md.push_str(&format!(
+            "- Admin paused: {}\n",
+            report.kill_switch_state.admin_paused
+        ));
+        md.push_str(&format!(
+            "- CLI paused: {}\n",
+            report.kill_switch_state.cli_paused
+        ));
+        md.push_str(&format!(
+            "- Is paused: {}\n\n",
+            report.kill_switch_state.is_paused
+        ));
 
         md.push_str("## SBOM\n\n");
         md.push_str(&format!("- Total sources: {}\n", report.sbom.entries.len()));
         md.push_str(&format!("- Total chunks: {}\n\n", report.sbom.total_chunks));
         for entry in &report.sbom.entries {
-            md.push_str(&format!("- {} ({}) — chunks: {}, attribution: {}\n",
-                entry.source_id, entry.license, entry.chunk_count, entry.attribution_required));
+            md.push_str(&format!(
+                "- {} ({}) — chunks: {}, attribution: {}\n",
+                entry.source_id, entry.license, entry.chunk_count, entry.attribution_required
+            ));
         }
 
         md.push_str("\n## Metrics\n\n");
         md.push_str(&format!("- Total runs: {}\n", report.total_runs));
-        md.push_str(&format!("- Total chunks indexed: {}\n", report.total_chunks_indexed));
+        md.push_str(&format!(
+            "- Total chunks indexed: {}\n",
+            report.total_chunks_indexed
+        ));
         md.push_str(&format!("- Total bytes: {}\n", report.total_bytes));
-        md.push_str(&format!("- Total evictions: {}\n\n", report.total_evictions));
+        md.push_str(&format!(
+            "- Total evictions: {}\n\n",
+            report.total_evictions
+        ));
 
         if let Some(eval) = &report.eval_metrics {
             md.push_str("## Evaluation\n\n");
@@ -239,7 +283,11 @@ impl ReportGenerator {
         if let Some(p) = parent {
             std::fs::create_dir_all(p).ok();
         }
-        let mut file = OpenOptions::new().create(true).write(true).truncate(true).open(path)?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?;
         file.write_all(content.as_bytes())?;
         Ok(())
     }
@@ -278,14 +326,12 @@ mod tests {
     }
 
     fn make_sources() -> Vec<SourceEntry> {
-        vec![
-            crate::learner::compliance::SourceEntry {
-                id: "wikipedia_en".to_string(),
-                license: "CC-BY-SA-4.0".to_string(),
-                paths: vec!["/wiki/".to_string()],
-                rate_rpm: 30,
-            },
-        ]
+        vec![crate::learner::compliance::SourceEntry {
+            id: "wikipedia_en".to_string(),
+            license: "CC-BY-SA-4.0".to_string(),
+            paths: vec!["/wiki/".to_string()],
+            rate_rpm: 30,
+        }]
     }
 
     fn make_eval_metrics() -> EvalMetrics {
@@ -327,30 +373,52 @@ mod tests {
                 generated_at: 0,
                 period: ReportPeriod::Monthly,
                 budget_summary: BudgetSummary {
-                    disk_gb: 2.0, chunk_cap: 200000, bytes_per_day: 104857600,
-                    embed_cpu_quota: 100, eviction_policy: "lru_coldest".to_string(),
-                    avg_degrade_level: DegradeLevel::CuriosityOff, total_evictions: 3,
+                    disk_gb: 2.0,
+                    chunk_cap: 200000,
+                    bytes_per_day: 104857600,
+                    embed_cpu_quota: 100,
+                    eviction_policy: "lru_coldest".to_string(),
+                    avg_degrade_level: DegradeLevel::CuriosityOff,
+                    total_evictions: 3,
                 },
                 kill_switch_state: KillSwitchState::default(),
-                sbom: SbomReport { entries: vec![], total_chunks: 300, total_size_mb: 100.0 },
+                sbom: SbomReport {
+                    entries: vec![],
+                    total_chunks: 300,
+                    total_size_mb: 100.0,
+                },
                 eval_metrics: Some(make_eval_metrics()),
                 mrr_trend: vec![("2026-01".to_string(), 0.50)],
-                total_runs: 2, total_chunks_indexed: 300, total_bytes: 30000000, total_evictions: 3,
+                total_runs: 2,
+                total_chunks_indexed: 300,
+                total_bytes: 30000000,
+                total_evictions: 3,
             },
             AutomatedReport {
                 report_id: "monthly_2".to_string(),
                 generated_at: 0,
                 period: ReportPeriod::Monthly,
                 budget_summary: BudgetSummary {
-                    disk_gb: 2.0, chunk_cap: 200000, bytes_per_day: 104857600,
-                    embed_cpu_quota: 100, eviction_policy: "lru_coldest".to_string(),
-                    avg_degrade_level: DegradeLevel::CuriosityOff, total_evictions: 4,
+                    disk_gb: 2.0,
+                    chunk_cap: 200000,
+                    bytes_per_day: 104857600,
+                    embed_cpu_quota: 100,
+                    eviction_policy: "lru_coldest".to_string(),
+                    avg_degrade_level: DegradeLevel::CuriosityOff,
+                    total_evictions: 4,
                 },
                 kill_switch_state: KillSwitchState::default(),
-                sbom: SbomReport { entries: vec![], total_chunks: 400, total_size_mb: 200.0 },
+                sbom: SbomReport {
+                    entries: vec![],
+                    total_chunks: 400,
+                    total_size_mb: 200.0,
+                },
                 eval_metrics: None,
                 mrr_trend: vec![("2026-02".to_string(), 0.63)],
-                total_runs: 2, total_chunks_indexed: 400, total_bytes: 40000000, total_evictions: 4,
+                total_runs: 2,
+                total_chunks_indexed: 400,
+                total_bytes: 40000000,
+                total_evictions: 4,
             },
         ];
 

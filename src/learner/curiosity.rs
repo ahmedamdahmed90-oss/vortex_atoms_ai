@@ -3,7 +3,7 @@
 // KNOW-01 Section 5: Curiosity Loop.
 // Self-directed learning: records retrieval misses, resolves gaps.
 
-use crate::learner::state::{StateStore, GapRecord};
+use crate::learner::state::{GapRecord, StateStore};
 
 /// Records retrieval misses as curiosity gaps.
 pub struct CuriosityEngine {
@@ -121,18 +121,27 @@ mod tests {
     #[test]
     fn resolve_source_for_rust_topic() {
         let engine = make_engine();
-        assert_eq!(engine.resolve_source_for_topic("rust ownership"), Some("rust_doc"));
+        assert_eq!(
+            engine.resolve_source_for_topic("rust ownership"),
+            Some("rust_doc")
+        );
     }
 
     #[test]
     fn resolve_source_for_python_topic() {
         let engine = make_engine();
-        assert_eq!(engine.resolve_source_for_topic("python async"), Some("python_doc"));
+        assert_eq!(
+            engine.resolve_source_for_topic("python async"),
+            Some("python_doc")
+        );
     }
 
     #[test]
     fn resolve_source_for_generic_topic() {
         let engine = make_engine();
-        assert_eq!(engine.resolve_source_for_topic("history"), Some("wikipedia_en"));
+        assert_eq!(
+            engine.resolve_source_for_topic("history"),
+            Some("wikipedia_en")
+        );
     }
 }
