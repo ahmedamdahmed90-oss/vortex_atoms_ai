@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+.github
+
+# Rust
+target/
+Cargo.lock
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Documentation
+*.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# Tests
+tests/

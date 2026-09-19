@@ -1,0 +1,33 @@
+{
+  "subject": {
+    "name": "vortex_atoms_ai",
+    "version": "0.2.0",
+    "digest": "sha256:",
+    "type": "application"
+  },
+  "predicate": {
+    "buildType": "https://github.com/rust-lang/cargo",
+    "buildParameters": {
+      "features": [
+        "learner",
+        "tray"
+      ],
+      "rustVersion": "1.78",
+      "command": "cargo build --features learner,tray --release",
+      "sbom": "SBOM.json"
+    },
+    "compiler": {
+      "name": "rustc",
+      "version": "1.78+"
+    },
+    "metadata": {
+      "compilationTimestamp": "2026-09-18T00:00:00Z",
+      "buildHost": "Windows x64",
+      "gitCommit": "HEAD",
+      "cargoLock": "Cargo.lock",
+      "totalComponents": 715
+    }
+  },
+  "projectName": "Vortex Atoms AI",
+  "projectVersion": "0.2.0"
+}

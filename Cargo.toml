@@ -1,0 +1,95 @@
+[package]
+name = "vortex_atoms_ai"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.78"
+description = "Low-latency Rust ML kernel foundation for Vortex Atoms AI."
+license = "MIT OR Apache-2.0"
+
+[workspace]
+resolver = "2"
+
+[dependencies]
+candle-core = "0.11"
+candle-nn = "0.11"
+candle-transformers = "0.11"
+qdrant-client = "1.18"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "time", "signal"] }
+memmap2 = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokenizers = "0.22"
+hf-hub = "0.4"
+tokio-stream = "0.1"
+futures-util = "0.3"
+axum = { version = "0.8", features = ["ws"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+tower-http = { version = "0.6", features = ["cors", "limit"] }
+base64 = "0.22"
+ort = { version = "2.0.0-rc.12", features = ["download-binaries", "ndarray"], optional = true }
+eframe = { version = "0.28", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"], optional = true }
+rust-embed = "8.0"
+rayon = { version = "1", optional = true }
+getrandom = "0.2"
+sha2 = "0.10"
+tray-icon = { version = "0.20", optional = true }
+llama-cpp-2 = { version = "0.1", default-features = false, features = ["native"], optional = true }
+redb = { version = "0.15", optional = true }
+whatlang = { version = "0.15", optional = true }
+scraper = { version = "0.20", default-features = false, optional = true }
+robots_txt = { version = "0.7", optional = true }
+tokio-util = { version = "0.7", features = ["time"], optional = true }
+tempfile = { version = "3", optional = true }
+regex = "1"
+url = "2"
+mime = "0.3"
+http = "1"
+futures = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
+
+[features]
+default = []
+dashboard = ["dep:eframe"]
+cuda = ["candle-core/cuda"]
+par-matmul = ["dep:rayon"]
+neural-embed = ["dep:ort"]
+tray = ["dep:tray-icon"]
+ggml = ["dep:llama-cpp-2"]
+learner = [
+    "dep:redb",
+    "dep:whatlang",
+    "dep:scraper",
+    "dep:robots_txt",
+    "dep:tokio-util",
+    "dep:tempfile",
+]
+
+[[bin]]
+name = "vortex_dashboard"
+path = "src/bin/vortex_dashboard.rs"
+required-features = ["dashboard"]
+
+[[bin]]
+name = "vortex_chat"
+path = "src/bin/vortex_chat.rs"
+
+[[bin]]
+name = "vortex_api"
+path = "src/bin/vortex_api.rs"
+
+[[bin]]
+name = "vortex_learn"
+path = "src/bin/vortex_learn.rs"
+required-features = ["learner"]
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

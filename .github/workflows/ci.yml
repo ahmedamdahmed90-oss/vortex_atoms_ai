@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ========================================
+  # Backend (Rust) CI
+  # ========================================
+  backend:
+    name: Backend (Rust)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: Build backend
+        run: cargo build --release --all-features
+
+      - name: Run tests
+        run: cargo test --all-features --verbose
+
+      - name: Verify knowledge artifacts are reproducible
+        run: |
+          for m in bio_medical engineering_expert finance_math global_humanities; do :; done
+          python3 tools/compile_bio_medical_module.py
+          python3 tools/compile_engineering_expert_module.py
+          python3 tools/compile_finance_math_module.py
+          python3 tools/compile_global_humanities_module.py
+          git diff --exit-code -- knowledge/ || (echo "::error::knowledge/*.tcz|bin drifted from tools/*.py — re-run the generators and commit" && exit 1)
+
+      - name: Log-hygiene lint (no user content in logs)
+        run: |
+          if grep -RInE '(println!|eprintln!).*\{(prompt|content|message|text|body)' src/ --include='*.rs' | grep -v 'format!("Invalid request' | grep -v public_message; then
+            echo "::error::possible user-content logging — use public_message() / redacted fields"
+            exit 1
+          fi
+          echo "log hygiene OK"
+
+      - name: Generate coverage report
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --all-features --out Xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./cobertura.xml
+          flags: backend
+          fail_ci_if_error: false
+
+  # ========================================
+  # Frontend (React/TypeScript) CI
+  # ========================================
+  frontend:
+    name: Frontend (React)
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm run test -- --coverage
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          directory: ./frontend/coverage
+          flags: frontend
+          fail_ci_if_error: false
+
+  # ========================================
+  # Docker Build
+  # ========================================
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: vortex-atoms-ai:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ========================================
+  # Security Audit
+  # ========================================
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run cargo audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
+      - name: Run npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=high

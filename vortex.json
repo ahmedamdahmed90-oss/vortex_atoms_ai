@@ -1,0 +1,1 @@
+{"learner":{"enabled":false,"schedule":{"run_every_hours":6,"max_runtime_minutes":30,"off_peak_local":[0,6]},"disk_budget_gb":2.0,"chunk_cap":200000,"curiosity":{"enabled":true,"max_new_topics_per_run":5},"sources":[]}}

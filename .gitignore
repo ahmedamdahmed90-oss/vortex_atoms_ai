@@ -1,0 +1,60 @@
+# Rust
+/target
+/debug
+*.bin
+*.tcz
+*.safetensors
+!knowledge/*.bin
+!knowledge/*.tcz
+
+# Environment
+.env
+.env.*
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/.playwright/
+
+# Logs
+*.log
+npm-debug.log*
+api_stderr.log
+api_stdout.log
+
+# Temp files
+*_err.txt
+*_out.txt
+clippy_out*.txt
+check_err.txt
+check_out.txt
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Coverage
+*.lcov
+.coverage
+htmlcov/
+
+# Data room output (generated)
+docs/data_room/out/
+docs/data_room/test_render/
+
+# Build artifacts
+/dist
+*.exe
+*.msi
+*.zip
+
+# Python
+__pycache__/
+*.pyc

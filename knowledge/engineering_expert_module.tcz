@@ -1,0 +1,26 @@
+VAI_TCZ_V1 module=engineering_expert_module identity=vortex_atoms_ai safety_bounded=true
+@@section electronics_repair
+@@title Electronics Repair Expert System
+@@tags electronics,repair,smps,diagnostics,current limited supply,rail,ripple,mosfet,diode,capacitor
+Fault isolation hierarchy: reproduce the symptom, inspect mechanically, model the power path, validate rails, validate clock/reset, validate buses, localize thermally, substitute known-good assemblies, apply corrective action, and regression test. Low-voltage bench workflow uses current limiting, ESD controls, expected idle-current envelopes, isolation for mains-side equipment, and qualified procedures for hazardous primary circuits. SMPS reasoning covers input protection, rectification/PFC, startup bias, PWM control, primary switch behavior, transformer coupling, secondary rectification, optocoupler feedback, compensation stability, transient response, and protection latch states. Measurement heuristics include ripple trend, ESR instability, diode leakage, MOSFET gate anomalies, thermal differential localization, absent oscillators, brownout reset loops, and connector intermittency.
+@@end
+@@section pcb_diagnostics
+@@title PCB Diagnostics and Rework Intelligence
+@@tags pcb,printed circuit board,diagnostics,bga,via,short,open,corrosion,rework,diode mode,xray,ir
+Board-level taxonomy: opens, shorts, leakage, impedance drift, solder fatigue, conductive anodic filament growth, dendrites, cracked MLCCs, via barrel fracture, BGA head-in-pillow, corrosion under packages, delamination, and heat-damaged dielectric. Diagnostic algorithm: segment by power domain, build a net criticality map, compare diode-mode signatures to a golden board, inspect by microscope/X-ray/IR, validate rail sequencing, probe reset and clock, isolate downstream loads, and document rework risk. Rework quality model includes thermal mass estimation, moisture sensitivity, flux compatibility, pad integrity, controlled preheat, post-rework cleaning validation, ionic contamination risk, conformal-coating repair, and acceptance testing.
+@@end
+@@section lithium_recycling_algorithms
+@@title Lithium Battery Recycling Algorithms
+@@tags lithium,battery recycling,18650,pouch cell,bms,state of health,soh,sorting,black mass,quarantine
+Decision algorithms support safe sorting, state estimation, pack traceability, transport classification, and certified recycler handoff. Sorting model: chemistry identification, pack history, voltage envelope, impedance trend, swelling or venting flag, thermal anomaly flag, BMS telemetry, recall status, and damage classification. State-of-health fusion combines open-circuit voltage, coulomb-count history, DC internal resistance, temperature response, cycle count, self-discharge rate, and Bayesian confidence bands to route packs toward reuse, second-life evaluation, or recycling. Risk controls flag swelling, electrolyte odor, heat, puncture, saltwater exposure, unknown chemistry, or unsafe transport thresholds for hazardous-material escalation.
+@@end
+@@section metal_detector_schematics
+@@title Metal Detector Schematics and Signal Models
+@@tags metal detector,schematic,vlf,pulse induction,pi,bfo,coil,ground balance,dsp,oscillator
+Educational low-voltage architectures: VLF induction balance, pulse induction, beat-frequency oscillator, synchronous demodulation, low-noise preamplification, band-pass filtering, ground balance, ADC sampling, and target classification DSP. VLF block model: transmit oscillator to coil driver to balanced receive coil to instrumentation preamp to phase detector to low-pass filter to MCU classifier to audio/display output. PI block model: controlled pulse driver to search coil to flyback clamp to recovery blanking to decay sampler to integrator to baseline tracker to target response classifier. Design constraints include coil Q, shielding, cable capacitance, ferrite and soil mineralization, EMI rejection, battery noise, low-voltage power safety, and regulatory emissions limits.
+@@end
+@@section precious_metal_process_safety
+@@title Precious Metal Recovery and Chemical Process Safety
+@@tags precious metal,gold extraction,silver,palladium,chemical process,acid,cyanide,aqua regia,refiner,assay,xrf,e waste
+Non-operational process intelligence for e-waste recovery decisions, hazard analysis, assay planning, compliance, and certified-refiner handoff. The module intentionally omits reagent recipes, concentrations, reaction conditions, and extraction steps. Process map: material identification, depopulation decision, mechanical separation, assay/XRF screening, chain-of-custody, hazardous constituent inventory, permitted processing route selection, waste-treatment accountability, and refiner settlement reconciliation. Hazards to recognize include strong acids, oxidizers, cyanide systems, toxic metal salts, chlorine or nitrogen oxide gases, uncontrolled heat evolution, incompatible waste streams, and contaminated residues. Safer decision algorithm estimates recoverable value, subtracts labor/compliance/waste costs, evaluates exposure risk, prefers mechanical separation and certified downstream refining, and rejects informal chemical processing when controls are absent.
+@@end

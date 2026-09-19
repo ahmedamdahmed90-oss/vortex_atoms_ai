@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Vortex Atoms AI Discussions
+    url: https://github.com/mansour2024/vortex_atoms_ai/discussions
+    about: Please ask and answer questions here
+  - name: Security Vulnerability
+    url: https://github.com/mansour2024/vortex_atoms_ai/security/advisories/new
+    about: Please report security vulnerabilities here

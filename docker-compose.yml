@@ -1,0 +1,58 @@
+services:
+  vortex-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vortex-atoms-ai
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/app/models:ro
+      - vortex-data:/app/data
+    environment:
+      - RUST_LOG=info
+      - VORTEX_HOST=0.0.0.0
+      - VORTEX_PORT=8080
+      # REQUIRED: the container binds 0.0.0.0, so the server fail-closes
+      # without token auth. Set a strong secret here (and pass it as
+      # `Authorization: Bearer <token>` on every call).
+      - VORTEX_API_TOKEN=${VORTEX_API_TOKEN:?set VORTEX_API_TOKEN in .env}
+      - VORTEX_ALLOW_REMOTE=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - vortex-network
+
+  # Optional: Frontend dev server (for development)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: vortex-frontend-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8080/v1
+      - VITE_WS_URL=ws://localhost:8080/ws
+    depends_on:
+      vortex-api:
+        condition: service_healthy
+    networks:
+      - vortex-network
+    profiles:
+      - dev
+
+volumes:
+  vortex-data:
+
+networks:
+  vortex-network:
+    driver: bridge

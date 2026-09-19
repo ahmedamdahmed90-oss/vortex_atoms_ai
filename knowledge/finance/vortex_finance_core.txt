@@ -1,0 +1,31 @@
+Vortex Finance Module
+=====================
+
+1. Financial Ratios
+- Current Ratio = Current Assets / Current Liabilities (>1.5 healthy)
+- Quick Ratio = (Current Assets - Inventory) / Current Liabilities (>1.0)
+- Debt-to-Equity = Total Liabilities / Shareholder Equity (<2.0)
+- ROI = (Gain - Cost) / Cost * 100
+- ROE = Net Income / Shareholder Equity
+- EPS = Net Income / Outstanding Shares
+
+2. Time Value of Money
+- PV = FV / (1 + r)^n
+- FV = PV * (1 + r)^n
+- NPV = sum of PV of all cash flows
+- IRR: rate where NPV = 0
+- Perpetuity: PV = PMT / r
+- Annuity: PV = PMT * (1 - (1+r)^-n) / r
+
+3. Risk Management
+- Alpha: excess return vs benchmark
+- Beta: volatility relative to market (>1 aggressive, <1 defensive)
+- Sharpe Ratio: (Return - RiskFree) / Standard Deviation
+- Value at Risk (VaR): max loss at 95/99% confidence
+- Diversification: reduce unsystematic risk through uncorrelated assets
+
+4. Tax Categories
+- Income Tax: progressive brackets (10%, 12%, 22%, 24%, 32%, 35%, 37%)
+- Capital Gains: short-term (<1 year) as income, long-term (0%, 15%, 20%)
+- Corporate Tax: flat 21% (US), varies by jurisdiction
+- VAT/Sales Tax: consumption tax, varies by state/country (5-27%)

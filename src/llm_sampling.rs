@@ -1,0 +1,196 @@
+use candle_core::Tensor;
+use candle_transformers::generation::{LogitsProcessor, Sampling};
+
+use crate::llm_config::SamplingConfig;
+use crate::Result;
+
+/// Index of the largest logit. Ties resolve deterministically toward the
+/// lowest token id, so greedy decoding is reproducible run-to-run.
+pub fn argmax_index(values: &[f32]) -> usize {
+    let mut best = 0usize;
+    for (index, &value) in values.iter().enumerate() {
+        if value > values[best] {
+            best = index;
+        }
+    }
+    best
+}
+
+/// Apply a repeat-penalty window to logits in place.
+///
+/// Each occurrence of a token inside the sliding window divides (positive) or
+/// multiplies (negative) its logit by `penalty`. Iterating the window once per
+/// occurrence is arithmetic-identical to the previous `powf(count)` form and
+/// needs no per-token hash map.
+pub fn apply_repeat_penalty_window(
+    values: &mut [f32],
+    generated: &[u32],
+    penalty: f32,
+    repeat_last_n: usize,
+) {
+    if penalty <= 1.0 || generated.is_empty() {
+        return;
+    }
+    let start = generated.len().saturating_sub(repeat_last_n);
+    for &token in &generated[start..] {
+        if let Some(logit) = values.get_mut(token as usize) {
+            if *logit > 0.0 {
+                *logit /= penalty;
+            } else {
+                *logit *= penalty;
+            }
+        }
+    }
+}
+
+/// Wrapper around candle-transformers LogitsProcessor with VortexAtoms integration.
+pub struct VortexSampler {
+    inner: LogitsProcessor,
+    repeat_penalty: f32,
+    repeat_last_n: usize,
+    config: SamplingConfig,
+    seed: u64,
+    /// True when the active sampling mode is `ArgMax`, enabling a fast
+    /// allocation-light greedy path that bypasses candle's softmax/top-k/top-p
+    /// machinery entirely.
+    greedy: bool,
+}
+
+impl VortexSampler {
+    pub fn new(seed: u64, config: &SamplingConfig) -> Self {
+        let sampling = Self::make_sampling(config);
+        let greedy = matches!(sampling, Sampling::ArgMax);
+        Self {
+            inner: LogitsProcessor::from_sampling(seed, sampling),
+            repeat_penalty: config.repeat_penalty,
+            repeat_last_n: config.repeat_last_n,
+            config: config.clone(),
+            seed,
+            greedy,
+        }
+    }
+
+    /// True when decoding will use deterministic `ArgMax` (the greedy fast path).
+    pub fn is_greedy(&self) -> bool {
+        self.greedy
+    }
+
+    fn make_sampling(config: &SamplingConfig) -> Sampling {
+        let temp = config.temperature.unwrap_or(0.8);
+        // A temperature at (or below) 1e-7 means greedy: map it to candle's
+        // ArgMax instead of a near-zero-temperature softmax (which divides by
+        // ~0 and produces NaN logits — a latent bug in the old mapping).
+        if temp <= 1e-7 {
+            return Sampling::ArgMax;
+        }
+        match (config.top_k, config.top_p) {
+            (Some(k), Some(p)) => Sampling::TopKThenTopP {
+                k,
+                p,
+                temperature: temp,
+            },
+            (Some(k), None) => Sampling::TopK {
+                k,
+                temperature: temp,
+            },
+            (None, Some(p)) => Sampling::TopP {
+                p,
+                temperature: temp,
+            },
+            (None, None) => {
+                if config.temperature.is_some() {
+                    Sampling::All { temperature: temp }
+                } else {
+                    Sampling::ArgMax
+                }
+            }
+        }
+    }
+
+    /// Sample with caller-provided scratch (1.2: reuse logits Vec, no per-token alloc).
+    pub fn sample_with_scratch(
+        &mut self,
+        logits: &Tensor,
+        generated_tokens: &[u32],
+        scratch: &mut Vec<f32>,
+    ) -> Result<u32> {
+        if self.greedy {
+            // Reuse scratch: clear without deallocating, fill via to_vec1 into temp
+            // then move into scratch with capacity reuse (vocab ~32k, one alloc total).
+            let tmp = logits.to_vec1::<f32>()?;
+            scratch.clear();
+            scratch.extend_from_slice(&tmp);
+            apply_repeat_penalty_window(scratch, generated_tokens, self.repeat_penalty, self.repeat_last_n);
+            return Ok(argmax_index(scratch) as u32);
+        }
+        // Non-greedy reuses scratch too, then falls back to penalized tensor path.
+        let tmp = logits.to_vec1::<f32>()?;
+        scratch.clear();
+        scratch.extend_from_slice(&tmp);
+        // Apply windowed penalty in place on scratch, then create penalized tensor
+        // from scratch (single Tensor alloc, no HashMap on greedy).
+        if self.repeat_penalty > 1.0 && !generated_tokens.is_empty() {
+            let start = generated_tokens.len().saturating_sub(self.repeat_last_n);
+            for &tok in &generated_tokens[start..] {
+                if let Some(v) = scratch.get_mut(tok as usize) {
+                    if *v > 0.0 { *v /= self.repeat_penalty; } else { *v *= self.repeat_penalty; }
+                }
+            }
+        }
+        let penalized = Tensor::from_vec(scratch.clone(), logits.shape(), logits.device())?;
+        Ok(self.inner.sample(&penalized)?)
+    }
+
+    /// Sample the next token from logits, applying repeat penalty.
+    pub fn sample(&mut self, logits: &Tensor, generated_tokens: &[u32]) -> Result<u32> {
+        if self.greedy {
+            // Greedy fast path: one F32 vector read, penalty applied in place,
+            // manual argmax. Skips candle's softmax/top-k/top-p/WeightedIndex
+            // machinery and the extra tensor round-trip the old path performed.
+            let mut logits_vec = logits.to_vec1::<f32>()?;
+            apply_repeat_penalty_window(
+                &mut logits_vec,
+                generated_tokens,
+                self.repeat_penalty,
+                self.repeat_last_n,
+            );
+            return Ok(argmax_index(&logits_vec) as u32);
+        }
+
+        if self.repeat_penalty > 1.0 && !generated_tokens.is_empty() {
+            let penalty_tokens = if generated_tokens.len() > self.repeat_last_n {
+                &generated_tokens[generated_tokens.len() - self.repeat_last_n..]
+            } else {
+                generated_tokens
+            };
+
+            let mut logits_vec = logits.to_vec1::<f32>()?;
+            let mut token_counts = std::collections::HashMap::new();
+            for &token in penalty_tokens {
+                *token_counts.entry(token).or_insert(0u32) += 1;
+            }
+
+            for (&token, &count) in &token_counts {
+                if let Some(logit) = logits_vec.get_mut(token as usize) {
+                    if *logit > 0.0 {
+                        *logit /= self.repeat_penalty.powf(count as f32);
+                    } else {
+                        *logit *= self.repeat_penalty.powf(count as f32);
+                    }
+                }
+            }
+
+            let penalized = Tensor::from_vec(logits_vec, logits.shape(), logits.device())?;
+            Ok(self.inner.sample(&penalized)?)
+        } else {
+            Ok(self.inner.sample(logits)?)
+        }
+    }
+
+    pub fn set_temperature(&mut self, temp: f64) {
+        self.config.temperature = Some(temp);
+        let sampling = Self::make_sampling(&self.config);
+        self.greedy = matches!(sampling, Sampling::ArgMax);
+        self.inner = LogitsProcessor::from_sampling(self.seed, sampling);
+    }
+}

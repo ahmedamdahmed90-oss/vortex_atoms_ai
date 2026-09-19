@@ -1,0 +1,371 @@
+{
+  "_metadata": {
+    "version": "v0.3.0-dataroom",
+    "project": "Vortex Atoms AI",
+    "generated_at": "2026-09-18T22:45:00Z",
+    "source_project": "C:\\Vortex Atom AI   BY_ Ahmed Mansour\\vortex_atoms_ai",
+    "copyright": "// Copyright (c) 2026 Ahmad Mansour. All rights reserved."
+  },
+  "test_suites": {
+    "rust_lib_tests": {
+      "value": "156 passed, 0 failed",
+      "command": "cargo test --features learner --lib",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "rust_lib_tests_tray": {
+      "value": "156 passed, 0 failed",
+      "command": "cargo test --features learner,tray --lib",
+      "source_file": "SEC01_LANDING.md",
+      "source_line_or_table": "Section 0 baseline numbers",
+      "source_section": "Table"
+    },
+    "rust_clippy": {
+      "value": "0 errors",
+      "command": "cargo clippy --all-targets --features learner,tray -- -D warnings",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "rust_build": {
+      "value": "built",
+      "command": "cargo build --features learner --bin vortex_atoms_ai",
+      "source_file": "SEC01_LANDING.md",
+      "source_line_or_table": "Section 0 baseline numbers",
+      "source_section": "Table"
+    },
+    "frontend_test": {
+      "value": "356 passed, 22 files",
+      "command": "cd frontend && npm run test",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "frontend_e2e": {
+      "value": "54/54 (51 clean + 3 Firefox flakes green on retry)",
+      "command": "cd frontend && npm run test:e2e",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "frontend_oxlint": {
+      "value": "0 errors",
+      "command": "cd frontend && npm run lint:strict",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "frontend_vite_build": {
+      "value": "success",
+      "command": "cd frontend && npm run build",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "verify_release": {
+      "value": "PASSED",
+      "command": "tools/verify_release.ps1 -ReleaseDir dist -Strict",
+      "source_file": "SEC01_LANDING.md",
+      "source_line_or_table": "Section 3 release integrity",
+      "source_section": "Table"
+    }
+  },
+  "coverage_quadruple": {
+    "statements": {
+      "value": "99.49",
+      "command": "cd frontend && npm run test:coverage",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "branches": {
+      "value": "99.4",
+      "command": "cd frontend && npm run test:coverage",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "functions": {
+      "value": "99.42",
+      "command": "cd frontend && npm run test:coverage",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    },
+    "lines": {
+      "value": "99.88",
+      "command": "cd frontend && npm run test:coverage",
+      "source_file": "README.md",
+      "source_line_or_table": "certified state table",
+      "source_section": "Current certified state"
+    }
+  },
+  "performance": {
+    "perf_report_date": {
+      "value": "2026-05-13",
+      "command": "N/A (frozen baseline)",
+      "source_file": "PERF_REPORT.md",
+      "source_line_or_table": "line 5",
+      "source_section": "header"
+    },
+    "reference_machine": {
+      "value": "4 cores, NO AVX2, SIMD AVX + SSE4.2 + SSE4.1 + SSSE3 + SSE2",
+      "command": "N/A",
+      "source_file": "PERF_REPORT.md",
+      "source_line_or_table": "line 3",
+      "source_section": "header"
+    },
+    "fastpath_ms": {
+      "value": "<1",
+      "command": "perf_topology harness via /v1/bench",
+      "source_file": "PERF_REPORT.md",
+      "source_line_or_table": "bench matrix table line 34",
+      "source_section": "0.2 Bench matrix"
+    },
+    "cache_hit_ms": {
+      "value": "<1",
+      "command": "perf_topology harness via /v1/bench",
+      "source_file": "PERF_REPORT.md",
+      "source_line_or_table": "bench matrix table line 34",
+      "source_section": "0.2 Bench matrix"
+    },
+    "sku_baseline_size_kb": {
+      "value": "~14876",
+      "command": "tools/build_skus.ps1",
+      "source_file": "dist/skus/vortex_api-sse41.exe",
+      "source_line_or_table": "file size",
+      "source_section": "dist"
+    },
+    "sku_avx1_size_kb": {
+      "value": "~16466",
+      "command": "tools/build_skus.ps1",
+      "source_file": "dist/skus/vortex_api-avx1.exe",
+      "source_line_or_table": "file size",
+      "source_section": "dist"
+    },
+    "host_features": {
+      "value": "avx, sse4.2, sse4.1, ssse3, sse2 (no avx2 → tier=low)",
+      "command": "vortex_atoms_ai --simd-probe",
+      "source_file": "PERF_REPORT.md",
+      "source_line_or_table": "line 41-44",
+      "source_section": "0.2 Bench matrix"
+    }
+  },
+  "learner": {
+    "mrr5_hybrid": {
+      "value": "0.63",
+      "command": "vortex_learn --eval",
+      "source_file": "LEARNER_REPORT.md",
+      "source_line_or_table": "Fixture MRR@5 Numbers",
+      "source_section": "Fixtures"
+    },
+    "mrr5_vector_only": {
+      "value": "0.36",
+      "command": "vortex_learn --eval",
+      "source_file": "LEARNER_REPORT.md",
+      "source_line_or_table": "Fixture MRR@5 Numbers",
+      "source_section": "Fixtures"
+    },
+    "mrr5_delta": {
+      "value": "+0.27",
+      "command": "vortex_learn --eval",
+      "source_file": "LEARNER_REPORT.md",
+      "source_line_or_table": "Fixture MRR@5 Numbers",
+      "source_section": "Fixtures"
+    },
+    "learner_enabled": {
+      "value": false,
+      "command": "vortex.json config",
+      "source_file": "vortex.json",
+      "source_line_or_table": "learner.enabled=false",
+      "source_section": "config"
+    }
+  },
+  "security_posture": {
+    "threats_addressed": {
+      "value": 10,
+      "command": "N/A",
+      "source_file": "SECURITY.md",
+      "source_line_or_table": "threat-model table",
+      "source_section": "Table"
+    },
+    "rust_tests_security": {
+      "value": "156 passed, 0 failed",
+      "command": "cargo test --features learner --lib",
+      "source_file": "SEC01_LANDING.md",
+      "source_line_or_table": "Section 0 baseline",
+      "source_section": "Table"
+    },
+    "clippy_errors": {
+      "value": 0,
+      "command": "cargo clippy --all-targets --features learner,tray -- -D warnings",
+      "source_file": "SEC01_LANDING.md",
+      "source_line_or_table": "Section 0 baseline",
+      "source_section": "Table"
+    },
+    "residual_risks_count": {
+      "value": 3,
+      "command": "N/A",
+      "source_file": "SEC01_LANDING.md",
+      "source_line_or_table": "Residual Risks section",
+      "source_section": "list"
+    }
+  },
+  "release_integrity": {
+    "sbom_components": {
+      "value": 715,
+      "command": "python gen_sbom.py",
+      "source_file": "SBOM.json",
+      "source_line_or_table": "metadata.component count",
+      "source_section": "CycloneDX 1.4"
+    },
+    "cargo_lock_checksums": {
+      "value": 714,
+      "command": "Select-String -Path Cargo.lock -Pattern 'checksum = '",
+      "source_file": "Cargo.lock",
+      "source_line_or_table": "count",
+      "source_section": "root"
+    },
+    "sha256_sidecars": {
+      "value": 34,
+      "command": "tools/generate_sha256.ps1 -ReleaseDir dist",
+      "source_file": "dist/",
+      "source_line_or_table": "file count",
+      "source_section": "dist"
+    },
+    "verify_release_verdict": {
+      "value": "PASSED",
+      "command": "tools/verify_release.ps1",
+      "source_file": "tools/verify_release.ps1",
+      "source_line_or_table": "exit code 0",
+      "source_section": "output"
+    },
+    "portable_zip_size_mb": {
+      "value": 475.97,
+      "command": "Get-ChildItem dist/VortexAtomsAI-Portable.zip",
+      "source_file": "dist/VortexAtomsAI-Portable.zip",
+      "source_line_or_table": "file size",
+      "source_section": "dist"
+    },
+    "setup_exe_size_mb": {
+      "value": 462.57,
+      "command": "Get-ChildItem dist/VortexAtomsAI-Setup.exe",
+      "source_file": "dist/VortexAtomsAI-Setup.exe",
+      "source_line_or_table": "file size",
+      "source_section": "dist"
+    },
+    "api_exe_size_mb": {
+      "value": 16.44,
+      "command": "Get-ChildItem dist/vortex-atoms-ai-app/vortex_api.exe",
+      "source_file": "dist/vortex-atoms-ai-app/vortex_api.exe",
+      "source_line_or_table": "file size",
+      "source_section": "dist"
+    },
+    "chat_exe_size_mb": {
+      "value": 9.14,
+      "command": "Get-ChildItem dist/vortex-atoms-ai-app/vortex_chat.exe",
+      "source_file": "dist/vortex-atoms-ai-app/vortex_chat.exe",
+      "source_line_or_table": "file size",
+      "source_section": "dist"
+    },
+    "dashboard_exe_size_mb": {
+      "value": 10.95,
+      "command": "Get-ChildItem dist/vortex-atoms-ai-app/vortex_dashboard.exe",
+      "source_file": "dist/vortex-atoms-ai-app/vortex_dashboard.exe",
+      "source_line_or_table": "file size",
+      "source_section": "dist"
+    }
+  },
+  "market_traction": {
+    "pilot_slots": {
+      "value": "OPEN",
+      "command": "N/A",
+      "source_file": "MARKET_REPORT.md",
+      "source_line_or_table": "Pilot Status: No active pilots yet",
+      "source_section": "Baseline",
+      "note": "ESTIMATE - no signed pilots exist"
+    },
+    "pilot_program_terms": {
+      "value": "90 days free, 40% year-1 discount, 48h SLA",
+      "command": "N/A",
+      "source_file": "MARKET_REPORT.md",
+      "source_line_or_table": "line 10",
+      "source_section": "Baseline"
+    }
+  },
+  "module_byte_sizes": {
+    "note": "Knowledge module sizes in bytes (source files + .tcz binaries)",
+    "engineering_expert_module_source_kb": 4.7,
+    "engineering_expert_module_tcz_kb": 5.1,
+    "finance_math_module_source_kb": 4.5,
+    "finance_math_module_tcz_kb": 5.8,
+    "bio_medical_module_source_kb": 5.2,
+    "bio_medical_module_tcz_kb": 7.5,
+    "global_humanities_module_source_kb": 4.2,
+    "global_humanities_module_bin_kb": 6.4,
+    "avian_genetics_fastpath_kb": 5.1
+  },
+  "market_sizes": {
+    "note": "MARKET SIZES ARE ESTIMATES WITH ASSUMPTION NOTES",
+    "target_audience": "Developers, data teams, Arabic-first content consumers",
+    "estimate_note": "TAM/SAM/SOM not yet quantified; requires market research validation",
+    "estimate_source": "MARKET_REPORT.md (baseline only)"
+  },
+  "dist_total_size_mb": {
+    "value": 1551.0,
+    "command": "Get-ChildItem dist -Recurse -File | Measure-Object -Sum Length",
+    "source_file": "dist/",
+    "source_line_or_table": "1,626,190,543 bytes total",
+    "source_section": "dist"
+  },
+  "cargo_lock_checksums_value": {
+    "value": 714,
+    "command": "Select-String -Path Cargo.lock -Pattern 'checksum = '",
+    "source_file": "Cargo.lock",
+    "source_line_or_table": "count",
+    "source_section": "root"
+  },
+  "portable_zip_size_mb": {
+    "value": 475.97,
+    "command": "Get-ChildItem dist/VortexAtomsAI-Portable.zip",
+    "source_file": "dist/VortexAtomsAI-Portable.zip",
+    "source_line_or_table": "file size",
+    "source_section": "dist"
+  },
+  "setup_exe_size_mb": {
+    "value": 462.57,
+    "command": "Get-ChildItem dist/VortexAtomsAI-Setup.exe",
+    "source_file": "dist/VortexAtomsAI-Setup.exe",
+    "source_line_or_table": "file size",
+    "source_section": "dist"
+  },
+  "api_exe_size_mb": {
+    "value": 16.44,
+    "command": "Get-ChildItem dist/vortex-atoms-ai-app/vortex_api.exe",
+    "source_file": "dist/vortex-atoms-ai-app/vortex_api.exe",
+    "source_line_or_table": "file size",
+    "source_section": "dist"
+  },
+  "security_config_422_value": {
+    "value": 422,
+    "command": "N/A",
+    "source_file": "SEC01_LANDING.md",
+    "source_line_or_table": "replace_cfg validation",
+    "source_section": "Section 7"
+  },
+  "disk_guard_min_mb": {
+    "value": 1024,
+    "command": "N/A",
+    "source_file": "SEC01_LANDING.md",
+    "source_line_or_table": "Section 5 disk guard",
+    "source_section": "config"
+  },
+  "fastpath_max_ms": {
+    "value": 256,
+    "command": "N/A",
+    "source_file": "PERF_REPORT.md",
+    "source_line_or_table": "fastpath max frame size",
+    "source_section": "0.2 Bench matrix"
+  }
+}

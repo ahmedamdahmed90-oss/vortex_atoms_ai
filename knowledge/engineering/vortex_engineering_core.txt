@@ -1,0 +1,29 @@
+Vortex Engineering Reference
+===========================
+
+1. Rust Systems Programming
+- Ownership: each value has one owner, ownership transfers on move
+- Borrowing: &T (immutable), &mut T (mutable, exclusive)
+- Lifetimes: ensure references outlive their data
+- Unsafe: raw pointers, FFI, mutating static, unions
+- Concurrency: Send + Sync traits, Arc<Mutex<T>>, channels (mpsc)
+
+2. Algorithm Complexity
+- O(1): array access, hash table lookup (average)
+- O(log n): binary search, balanced tree operations
+- O(n): linear search, counting sort
+- O(n log n): mergesort, heapsort, quicksort (average)
+- O(n²): bubblesort, naive matrix multiplication
+
+3. System Design Patterns
+- Microservices: independent deployable services, API gateway, event bus
+- CQRS: separate read/write models, event sourcing
+- Circuit breaker: fail fast, retry with backoff, half-open state
+- Bulkhead: isolate resources per component, prevent cascade failure
+- Saga: distributed transaction with compensating actions
+
+4. Memory Management
+- Stack: LIFO, fast allocation, limited size (~1MB per thread)
+- Heap: dynamic allocation, slower, fragmentation possible
+- Virtual memory: pages (4KB typically), TLB, MMU translation
+- Cache hierarchy: L1 (32KB, ~1ns), L2 (256KB, ~4ns), L3 (8MB, ~10ns), RAM (~100ns)

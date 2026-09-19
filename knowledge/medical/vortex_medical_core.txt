@@ -1,0 +1,27 @@
+Vortex Medical Core Module
+===========================
+
+1. Patient Intake and Triage
+- Primary assessment: ABCDE approach (Airway, Breathing, Circulation, Disability, Exposure)
+- Vital signs monitoring: heart rate (60-100 bpm normal), blood pressure (120/80 normal), 
+  respiratory rate (12-20/min), temperature (37°C), oxygen saturation (>95%)
+- Pain scale assessment: 0-10 numeric rating scale
+- Glasgow Coma Scale: Eye (1-4), Verbal (1-5), Motor (1-6)
+
+2. Common Prescription Medications
+- Antibiotics: Amoxicillin 500mg TID, Azithromycin 500mg day1 then 250mg days2-5
+- Antihypertensives: Lisinopril 10-40mg daily, Amlodipine 5-10mg daily
+- Analgesics: Acetaminophen 500-1000mg q4-6h, Ibuprofen 400-800mg q6-8h
+- Antidiabetics: Metformin 500-2000mg daily, Insulin protocols per sliding scale
+
+3. Emergency Protocols
+- Cardiac arrest: CPR 30:2 ratio, defibrillation for shockable rhythms (VF/pVT)
+- Anaphylaxis: Epinephrine 0.3-0.5mg IM thigh, antihistamine, steroids
+- Stroke: FAST assessment (Face, Arms, Speech, Time), CT within 25 minutes
+- Sepsis: qSOFA score (altered mental state, RR >22, SBP <100), antibiotics within 1 hour
+
+4. Diagnostic Reference
+- CBC: WBC 4.5-11.0, RBC 4.7-6.1, Hgb 13.5-17.5, Hct 41-53%, Plt 150-450
+- BMP: Na 136-145, K 3.5-5.1, Cl 98-106, CO2 23-29, BUN 7-20, Cr 0.6-1.2
+- LFT: ALT 7-56, AST 10-40, ALP 44-147, TBili 0.3-1.0, Albumin 3.5-5.0
+- ABG: pH 7.35-7.45, pCO2 35-45, pO2 80-100, HCO3 22-26

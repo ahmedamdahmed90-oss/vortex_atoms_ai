@@ -1,0 +1,210 @@
+{
+ "schema": "vortex_atoms_ai_avian_fastpath",
+ "version": 1,
+ "generated_by": "tools/compile_bio_medical_module.py --fastpath",
+ "keywords_avian": [
+  "avian",
+  "bird",
+  "budgie",
+  "finch",
+  "opaline",
+  "hagoromo",
+  "blackwing",
+  "rainbow",
+  "clearwing",
+  "greywing",
+  "yellowface",
+  "sex-linked",
+  "sex linked",
+  "punnett",
+  "split",
+  "carrier"
+ ],
+ "keywords_probability": [
+  "genetics",
+  "inheritance",
+  "probability",
+  "punnett",
+  "genotype",
+  "phenotype",
+  "allele",
+  "offspring",
+  "expected",
+  "chance",
+  "odds",
+  "percent",
+  "ratio"
+ ],
+ "mutations": [
+  {
+   "key": "opaline",
+   "name": "Opaline",
+   "species": [
+    "budgie"
+   ],
+   "mode": "sex_linked_recessive",
+   "note": "Classic sex-linked recessive budgie mutation: males are ZZ and visual when both Z chromosomes carry opaline; females are ZW and visual when their single Z carries it; split males transmit without showing it; females cannot be split."
+  },
+  {
+   "key": "blackwing",
+   "name": "Blackwing",
+   "species": [
+    "budgie"
+   ],
+   "mode": "composite_phenotype",
+   "note": "Wing melanin distribution acting as a line-specific modifier that interacts with normal, clearwing, and greywing-like wing dilution pathways. Not a single-locus fastpath answer."
+  },
+  {
+   "key": "hagoromo",
+   "name": "Hagoromo",
+   "species": [
+    "budgie"
+   ],
+   "mode": "composite_phenotype",
+   "note": "Japanese frill crest/frill complex with variable expressivity and breeder-line modifiers. Not a single-locus fastpath answer."
+  },
+  {
+   "key": "rainbow",
+   "name": "Rainbow",
+   "species": [
+    "budgie"
+   ],
+   "mode": "composite_phenotype",
+   "note": "Composite phenotype assembly: blue-series base plus sex-linked opaline plus a wing dilution family plus yellowface/goldenface expression, then violet/dark/grey and pattern modifiers. Evaluate loci in assembly order; not a single-locus fastpath answer."
+  },
+  {
+   "key": "clearwing",
+   "name": "Clearwing",
+   "species": [
+    "budgie"
+   ],
+   "mode": "composite_phenotype",
+   "note": "Wing dilution family member acting as a phenotype modifier; evaluate with the full assembly order. Not a single-locus fastpath answer."
+  },
+  {
+   "key": "greywing",
+   "name": "Greywing",
+   "species": [
+    "budgie"
+   ],
+   "mode": "composite_phenotype",
+   "note": "Wing dilution family member acting as a phenotype modifier; evaluate with the full assembly order. Not a single-locus fastpath answer."
+  }
+ ],
+ "templates": {
+  "autosomal_recessive": [
+   {
+    "id": "ar_split_x_split",
+    "left": "split",
+    "right": "split",
+    "outcome": "25% normal non-carrier, 50% split, 25% visual"
+   },
+   {
+    "id": "ar_visual_x_normal",
+    "left": "visual",
+    "right": "normal",
+    "outcome": "100% split"
+   },
+   {
+    "id": "ar_visual_x_split",
+    "left": "visual",
+    "right": "split",
+    "outcome": "50% visual, 50% split"
+   },
+   {
+    "id": "ar_visual_x_visual",
+    "left": "visual",
+    "right": "visual",
+    "outcome": "100% visual"
+   },
+   {
+    "id": "ar_normal_x_normal",
+    "left": "normal",
+    "right": "normal",
+    "outcome": "100% normal non-carrier"
+   },
+   {
+    "id": "ar_split_x_normal",
+    "left": "split",
+    "right": "normal",
+    "outcome": "50% split, 50% normal non-carrier"
+   }
+  ],
+  "autosomal_dominant": [
+   {
+    "id": "ad_single_x_normal",
+    "left": "single_factor",
+    "right": "normal",
+    "outcome": "50% single-factor visual, 50% normal"
+   },
+   {
+    "id": "ad_double_x_normal",
+    "left": "double_factor",
+    "right": "normal",
+    "outcome": "100% single-factor visual"
+   },
+   {
+    "id": "ad_single_x_single",
+    "left": "single_factor",
+    "right": "single_factor",
+    "outcome": "25% normal, 50% single-factor, 25% double-factor"
+   },
+   {
+    "id": "ad_double_x_single",
+    "left": "double_factor",
+    "right": "single_factor",
+    "outcome": "50% double-factor, 50% single-factor"
+   },
+   {
+    "id": "ad_double_x_double",
+    "left": "double_factor",
+    "right": "double_factor",
+    "outcome": "100% double-factor (subject to viability checks)"
+   },
+   {
+    "id": "ad_normal_x_normal",
+    "left": "normal",
+    "right": "normal",
+    "outcome": "100% normal"
+   }
+  ],
+  "sex_linked_recessive": [
+   {
+    "id": "sl_visual_male_x_normal_female",
+    "left": "visual_male",
+    "right": "normal_female",
+    "outcome": "sons split, daughters visual"
+   },
+   {
+    "id": "sl_split_male_x_normal_female",
+    "left": "split_male",
+    "right": "normal_female",
+    "outcome": "25% normal son, 25% split son, 25% normal daughter, 25% visual daughter"
+   },
+   {
+    "id": "sl_normal_male_x_visual_female",
+    "left": "normal_male",
+    "right": "visual_female",
+    "outcome": "sons split, daughters normal"
+   },
+   {
+    "id": "sl_split_male_x_visual_female",
+    "left": "split_male",
+    "right": "visual_female",
+    "outcome": "25% visual male, 25% split male, 25% visual female, 25% normal female"
+   },
+   {
+    "id": "sl_visual_male_x_visual_female",
+    "left": "visual_male",
+    "right": "visual_female",
+    "outcome": "all visual (males and females)"
+   },
+   {
+    "id": "sl_normal_male_x_normal_female",
+    "left": "normal_male",
+    "right": "normal_female",
+    "outcome": "all normal"
+   }
+  ]
+ }
+}

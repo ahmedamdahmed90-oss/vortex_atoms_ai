@@ -1,0 +1,59 @@
+# Codecov Configuration
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 5%
+        branches:
+          - main
+          - develop
+        if_ci_failed: error
+        informational: false
+        only_pulls: false
+    patch:
+      default:
+        target: 70%
+        threshold: 5%
+        branches:
+          - main
+          - develop
+        if_ci_failed: error
+        informational: false
+        only_pulls: false
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+
+flags:
+  backend:
+    paths:
+      - src/
+    carryforward: true
+  frontend:
+    paths:
+      - frontend/src/
+    carryforward: true
+
+ignore:
+  - "node_modules/**/*"
+  - "frontend/node_modules/**/*"
+  - "target/**/*"
+  - "frontend/dist/**/*"
+  - "**/*.d.ts"
+  - "**/*.config.*"
+  - "tools/**/*"
