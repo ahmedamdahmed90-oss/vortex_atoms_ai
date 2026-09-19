@@ -28,9 +28,9 @@ clamped to `64..512` to match the API ceiling (`MAX_API_MAX_TOKENS = 512`).
 ## Test & build
 
 ```bash
-npm run test           # Vitest — 312 tests
+npm run test           # Vitest — 356 tests
 npm run test:coverage  # 99.49% stmts / 99.4% branch / 99.42% funcs / 99.88% lines
-npm run test:e2e       # Playwright — 48 tests across 3 browsers
+npm run test:e2e       # Playwright — 54 tests across 3 browsers (18 × 3)
 npm run lint           # oxlint (0 errors)
 npm run build          # tsc -b && vite build
 ```
