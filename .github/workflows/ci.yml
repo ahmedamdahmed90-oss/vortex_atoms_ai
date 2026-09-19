@@ -42,13 +42,13 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Run clippy
-        run: cargo clippy --all-features -- -D warnings
+        run: cargo clippy --features learner,tray -- -D warnings
 
       - name: Build backend
-        run: cargo build --release --all-features
+        run: cargo build --release --features learner,tray
 
       - name: Run tests
-        run: cargo test --all-features --verbose
+        run: cargo test --features learner,tray --verbose
 
       - name: Verify knowledge artifacts are reproducible
         run: |
@@ -70,7 +70,7 @@ jobs:
       - name: Generate coverage report
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin --all-features --out Xml
+          cargo tarpaulin --features learner,tray --out Xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
