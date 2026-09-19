@@ -1324,6 +1324,7 @@ fn test_session_purge_retention_sweep() {
 }
 
 #[test]
+#[cfg(windows)]
 fn test_session_store_encryption_at_rest() {
     let dir = std::env::temp_dir().join(format!("vortex_test_enc_{}", std::process::id()));
     let store = SessionStore::new(&dir);
