@@ -99,7 +99,11 @@ jobs:
         run: |
           cargo install cargo-tarpaulin
           cargo tarpaulin --features learner,tray --out Xml
+          df -h /
         continue-on-error: true
+
+      - name: Free disk space before coverage upload
+        run: rm -rf target/debug/deps/*.o target/debug/deps/*.rmeta target/debug/build 2>/dev/null; df -h /
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
