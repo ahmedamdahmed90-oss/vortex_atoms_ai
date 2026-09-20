@@ -109,3 +109,23 @@ Respect the subreddit rules — technical depth first, links last.
 **Check command:** `tools/check_claims.ps1`
 
 This script greps all outreach docs for banned phrases. Gate red if found.
+
+---
+
+## 7. Email Signature Block
+
+Use this signature in all outreach emails:
+
+```
+Ahmad Mansour
+Founder, Vortex Atoms AI
+https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai
+vortexatoms@gmail.com
+```
+
+## 8. Website / Badge Reference
+
+Badge URL for embedding:
+```
+https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/actions/workflows/ci.yml/badge.svg
+```
