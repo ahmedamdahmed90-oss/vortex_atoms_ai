@@ -92,8 +92,7 @@ jobs:
 
       - name: Build release binary (with embedded SBOM)
         run: |
-          cargo install cargo-auditable
-          cargo auditable build --release --bin vortex_api
+          cargo build --release --bin vortex_api
 
       - name: Package binary (Unix)
         if: matrix.os != 'windows-latest'
