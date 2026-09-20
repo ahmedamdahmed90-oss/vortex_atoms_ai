@@ -37,6 +37,23 @@ pub const MAX_EMBEDDING_INPUTS: usize = 256;
 /// clamps its request to this bound to guarantee bounded response time.
 pub const MAX_API_MAX_TOKENS: usize = 512;
 
+/// Stage 9 concurrency model (audited, do not restructure casually):
+///
+/// - **Admission**: `inference_permits` semaphore (`MAX_CONCURRENT_INFERENCE`)
+///   bounds how many requests may queue for compute; excess fails fast (503).
+/// - **Execution**: the engine `RwLock` write guard is held across the whole
+///   blocking generation, so generation is effectively **serial** (1 at a
+///   time) even though 2 permits may be admitted. The two limits mean
+///   different things: admission-burst vs execution-exclusion.
+/// - **Isolation**: the engine's conversation history is rebuilt per request
+///   (`clear_history` + caller-supplied messages) while holding the exclusive
+///   guard, so no request can observe another's history. Stateless endpoints
+///   (generate/tool-call/batch) clear unconditionally.
+/// - **Observability**: `/v1/health` uses `try_read` and never queues behind
+///   a running generation.
+/// - **Known limitation**: `/ws` streaming and the 5-kernel IKC path share
+///   the same engine without per-session partitioning; concurrent streaming
+///   sessions interleave history. Per-session engines are future work.
 pub struct ApiState {
     pub engine: Arc<RwLock<LlmInference>>,
     pub tool_executor: Arc<dyn ToolExecutor>,
@@ -404,6 +421,10 @@ async fn handle_generate(
     if let Some(t) = temperature {
         engine.set_temperature(t);
     }
+    // Stage 9 session isolation: the engine is shared across all clients, so
+    // its conversation history must not leak one request into another. The
+    // chat handler already resets per request; generate matches it.
+    engine.clear_history();
     let prompt = if context.is_empty() {
         req.prompt.clone()
     } else {
@@ -855,6 +876,8 @@ async fn handle_tool_call(
         // below runs without holding any ApiState guard.
         let engine_arc = state.read().await.engine.clone();
         let mut engine = engine_arc.write().await;
+        // Stage 9 session isolation (see handle_generate): stateless request.
+        engine.clear_history();
         let max_tokens = clamp_max_tokens(req.max_tokens);
         match tokio::task::block_in_place(|| engine.generate(&full_prompt, Some(max_tokens))) {
             Ok(text) => text,
@@ -1157,6 +1180,9 @@ async fn handle_batch(
         (guard.engine.clone(), augmented)
     };
     let mut engine = engine_arc.write().await;
+    // Stage 9 session isolation (see handle_generate): batch items must not
+    // observe each other's history through the shared engine.
+    engine.clear_history();
     let prompts_refs: Vec<&str> = augmented.iter().map(|s| s.as_str()).collect();
     let max_tokens = clamp_max_tokens(req.max_tokens);
 

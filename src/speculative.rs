@@ -4,6 +4,12 @@ use std::hash::{Hash, Hasher};
 
 /// Trait for speculative token drafters.
 /// Drafters propose candidate tokens that the main model verifies.
+///
+/// Stage 8 correctness scope: verification accepts a draft only on greedy
+/// argmax match — exact for greedy decoding, unsound as a temperature /
+/// top-k / top-p sampler (biases toward argmax, skips repeat penalty).
+/// The generation loop therefore runs speculation only when
+/// [`crate::llm_sampling::VortexSampler::is_greedy`] holds.
 pub trait SpeculativeDrafter: Send + Sync {
     /// Draft up to `max_draft` tokens given the current context.
     /// Returns a vector of drafted token IDs.

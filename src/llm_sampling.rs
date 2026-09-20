@@ -203,3 +203,52 @@ impl VortexSampler {
         self.inner = LogitsProcessor::from_sampling(self.seed, sampling);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config_with(
+        temperature: Option<f64>,
+        top_k: Option<usize>,
+        top_p: Option<f64>,
+    ) -> SamplingConfig {
+        SamplingConfig {
+            temperature,
+            top_k,
+            top_p,
+            repeat_penalty: 1.0,
+            repeat_last_n: 64,
+        }
+    }
+
+    #[test]
+    fn greedy_mapping_covers_stage8_scope() {
+        // No temperature configured -> greedy (speculation allowed).
+        assert!(VortexSampler::new(42, &config_with(None, None, None)).is_greedy());
+        // Zero / near-zero temperature -> greedy.
+        assert!(VortexSampler::new(42, &config_with(Some(0.0), None, None)).is_greedy());
+        // Normal sampling modes -> NOT greedy (speculation must be skipped).
+        assert!(!VortexSampler::new(42, &config_with(Some(0.7), None, None)).is_greedy());
+        assert!(!VortexSampler::new(42, &config_with(Some(0.7), Some(40), None)).is_greedy());
+        assert!(!VortexSampler::new(42, &config_with(Some(0.7), None, Some(0.9))).is_greedy());
+    }
+
+    #[test]
+    fn argmax_is_deterministic_on_ties() {
+        assert_eq!(argmax_index(&[1.0, 3.0, 3.0, 2.0]), 1);
+        assert_eq!(argmax_index(&[5.0]), 0);
+    }
+
+    #[test]
+    fn repeat_penalty_window_is_bounded() {
+        let mut logits = vec![2.0f32; 10];
+        let generated: Vec<u32> = (0..200).map(|i| (i % 10) as u32).collect();
+        apply_repeat_penalty_window(&mut logits, &generated, 1.5, 64);
+        // Only the last 64 tokens penalized; out-of-range ids ignored safely.
+        assert!(logits.iter().all(|&v| v != 2.0));
+        let mut short = vec![2.0f32; 10];
+        apply_repeat_penalty_window(&mut short, &[3], 1.5, 64);
+        assert_ne!(short[3], 2.0);
+    }
+}

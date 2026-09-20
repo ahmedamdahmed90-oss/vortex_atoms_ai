@@ -474,7 +474,14 @@ impl LlmInference {
             }
 
             // Speculative decoding: try to draft and verify multiple tokens at once.
-            if self.speculative_enabled {
+            // Stage 8 correctness scope: the verifier accepts drafts by greedy
+            // argmax, which is exact ONLY under greedy sampling. Under
+            // temperature/top-k/top-p sampling it would distort the output
+            // distribution (and skip the repeat penalty), so the speculative
+            // path is skipped unless the sampler is in ArgMax mode. The
+            // fallback below then samples normally — output distribution
+            // unchanged in every mode.
+            if self.speculative_enabled && self.sampler.is_greedy() {
                 if let Some(decoder) = &mut self.speculative_decoder {
                     let max_draft = decoder.max_draft_tokens;
                     if let Ok((accepted, _continue_spec)) =

@@ -54,6 +54,9 @@ pub struct PerformanceConfig {
     #[serde(default = "default_kv_cache_dtype")]
     pub kv_cache_dtype: String,
     /// Speculative decoding: enable n-gram drafter.
+    /// Greedy-exact only: the verifier accepts drafts by argmax, so the
+    /// runtime automatically skips speculation under temperature/top-k/top-p
+    /// sampling (output distribution is then bit-identical to no speculation).
     #[serde(default)]
     pub speculative_enabled: bool,
     /// Maximum tokens to draft per speculative step.
