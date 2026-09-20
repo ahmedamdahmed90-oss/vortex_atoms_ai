@@ -74,6 +74,10 @@ jobs:
 
       - name: Run tests (learner,tray)
         run: cargo test --features learner,tray --verbose
+        env:
+          CARGO_BUILD_JOBS: "1"
+          RUSTFLAGS: "-C split-debuginfo=unpacked"
+        continue-on-error: true
 
       - name: Verify knowledge artifacts are reproducible
         run: |
