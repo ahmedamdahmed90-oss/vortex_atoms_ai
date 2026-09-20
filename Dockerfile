@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y \
     libwebkit2gtk-4.1-dev \
     libayatana-appindicator3-dev \
     libxdo-dev \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
