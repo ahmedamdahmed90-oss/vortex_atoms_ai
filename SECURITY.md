@@ -17,8 +17,8 @@ If you discover a security vulnerability in Vortex Atoms AI, please report it re
 
 Instead, please report them to:
 
-- **Email**: security@vortexatoms.ai (or maintainer email)
-- **GitHub Security Advisory**: [Create a private advisory](https://github.com/mansour2024/vortex_atoms_ai/security/advisories/new)
+- **Email**: security@vortexatoms.ai
+- **GitHub Security Advisory**: [Create a private advisory](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/security/advisories/new)
 
 ### What to Include
 
@@ -29,7 +29,7 @@ Instead, please report them to:
 
 ### Response Time
 
-- **Initial Response**: Within 48 hours
+- **Initial Response**: Within 72 hours
 - **Update Frequency**: Every 3-5 days until resolved
 - **Target Resolution**: Within 30 days
 

@@ -28,42 +28,32 @@ Related Issue: #(issue number)
 2. Change 2
 3. Change 3
 
-## Backend Changes
-<!-- If applicable -->
-- [ ] Rust code formatted (`cargo fmt`)
-- [ ] No new clippy warnings (`cargo clippy -- -D warnings`)
-- [ ] Tests added/updated (`cargo test`)
-- [ ] Documentation comments added
-- [ ] API changes documented
+## CI Gate Checklist
+<!-- ALL items must pass before merge. Paste CI run URL. -->
 
-## Frontend Changes
-<!-- If applicable -->
-- [ ] TypeScript compiles without errors
-- [ ] No linting errors (`npm run lint`)
-- [ ] Components follow existing patterns
-- [ ] CSS uses Tailwind utilities
-- [ ] RTL support maintained
+### Backend
+- [ ] `cargo fmt -- --check` clean
+- [ ] `cargo clippy --all-targets --features learner,tray -- -D warnings` clean
+- [ ] `cargo test --features learner --lib` — 156+ passed, 0 failed
+- [ ] `cargo test --features learner,tray` — passed
 
-## Testing
-<!-- Describe how you tested these changes -->
-- [ ] Unit tests pass (`cargo test` / `npm run test`)
-- [ ] Integration tests pass
-- [ ] E2E tests pass (if applicable)
-- [ ] Manual testing performed
+### Frontend
+- [ ] `npm run lint:strict` — 0 errors, 0 warnings
+- [ ] `npm run test` — 356+ passed
+- [ ] `npm run build` — success
+
+### Data Room
+- [ ] `check_facts_fresh.ps1` — green
+- [ ] `check_no_manual_numbers.ps1` — green
+- [ ] `check_repo_refs.ps1` — green
+
+### Documentation
+- [ ] README updated (if user-facing changes)
+- [ ] API_REFERENCE.md updated (if API changes)
+- [ ] CHANGELOG entry added
 
 ## Screenshots (if applicable)
 <!-- Add screenshots to demonstrate the changes -->
-
-## Checklist
-<!-- Mark completed items with [x] -->
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
-- [ ] Any dependent changes have been merged and published
 
 ## Breaking Changes
 <!-- List any breaking changes and migration steps -->

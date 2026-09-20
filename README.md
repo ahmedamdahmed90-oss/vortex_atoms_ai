@@ -602,6 +602,10 @@ loaders, documented in `docs/DEVELOPER_GUIDE.md`.
 
 3 Firefox E2E flakes (retry-green). See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for details and [GitHub Issues](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues?q=label%3Aflaky) for tracking.
 
+## Why 2 Commits?
+
+This public repo is a **release mirror** — squashed snapshots from v0.2.0+. Full development history is private. See [REPO_STATUS.md](docs/REPO_STATUS.md) for details.
+
 ## License
 
 Licensed under either of MIT or Apache-2.0 at your option. See [LICENSE](LICENSE).

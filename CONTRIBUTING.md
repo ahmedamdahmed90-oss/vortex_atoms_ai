@@ -60,6 +60,44 @@ Feature requests are welcome! Please provide:
 
 ## Development Setup
 
+### Windows Prerequisites
+
+- **Rust 1.78+**: [Install via rustup](https://rustup.rs/)
+- **Node.js 22+**: [Install](https://nodejs.org/)
+- **NSIS**: For building installers (optional, `C:\Program Files (x86)\NSIS`)
+- **PowerShell 5.1+**: Used for build scripts
+- **Python 3.11+**: For knowledge module compilation
+
+> **PowerShell note:** `&&` is not valid in PowerShell 5.1. Use separate commands or `cmd1; if ($?) { cmd2 }`.
+
+### Fresh Clone → Green Gate (measured on reference machine)
+
+```bash
+# 1. Clone
+git clone https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai.git
+cd vortex_atoms_ai
+
+# 2. Build frontend (~30s)
+cd frontend && npm ci && npm run build && cd ..
+
+# 3. Build backend (~3-5 min first time)
+cargo build --features learner,tray
+
+# 4. Run all tests
+cargo test --features learner,tray          # ~30s
+cargo test --features learner --lib         # ~20s
+cd frontend && npm run test                 # ~15s
+cd frontend && npm run test:e2e             # ~60s (Chromium)
+cd ..
+
+# 5. Lint
+cargo fmt -- --check
+cargo clippy --all-targets --features learner,tray -- -D warnings
+cd frontend && npm run lint:strict
+```
+
+**Reference wall times:** Clone 10s, npm ci 30s, cargo build 3-5 min, cargo test 30s, vitest 15s, e2e 60s.
+
 ### Backend (Rust)
 
 **Prerequisites:**
