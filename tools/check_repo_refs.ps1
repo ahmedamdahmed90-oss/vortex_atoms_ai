@@ -30,14 +30,19 @@ if ($gitRemote -notlike "*vortex_atoms_ai*") {
 
 # 2. Check HEAD commit matches repo_sha
 $gitSha = (git rev-parse HEAD 2>$null).Trim()
-$factsShaValid = (git cat-file -t $expectedSha 2>$null) -eq "commit"
+$isShallow = (git rev-parse --is-shallow-repository 2>$null).Trim()
 if ($gitSha -ne $expectedSha) {
-    if ($factsShaValid) {
-        Write-Host "⚠️  HEAD SHA differs from facts.json (expected after fresh push)" -ForegroundColor Yellow
-        Write-Host "   facts.json SHA $expectedSha is valid commit in repo" -ForegroundColor Yellow
+    if ($isShallow -eq "true") {
+        Write-Host "⚠️  Shallow clone: HEAD SHA differs from facts.json (expected in CI)" -ForegroundColor Yellow
+        Write-Host "   HEAD: $gitSha | facts.json: $expectedSha" -ForegroundColor Yellow
     } else {
-        Write-Host "❌ HEAD SHA mismatch AND facts.json SHA not found in repo: $expectedSha" -ForegroundColor Red
-        $failed++
+        $factsShaValid = (git cat-file -t $expectedSha 2>$null) -eq "commit"
+        if ($factsShaValid) {
+            Write-Host "⚠️  HEAD SHA differs from facts.json (valid commit in history)" -ForegroundColor Yellow
+        } else {
+            Write-Host "❌ HEAD SHA mismatch AND facts.json SHA not found in repo: $expectedSha" -ForegroundColor Red
+            $failed++
+        }
     }
 } else {
     Write-Host "✅ HEAD SHA matches: $gitSha" -ForegroundColor Green
