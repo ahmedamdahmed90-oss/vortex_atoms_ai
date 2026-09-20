@@ -22,10 +22,15 @@ RUN npm run build
 # Stage 2: Build Backend
 FROM rust:1.96-slim AS backend-builder
 
-# Install dependencies
+# Install dependencies for tray feature (glib, gtk, webkit, xdo)
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    libglib2.0-dev \
+    libgtk-3-dev \
+    libwebkit2gtk-4.1-dev \
+    libayatana-appindicator3-dev \
+    libxdo-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
