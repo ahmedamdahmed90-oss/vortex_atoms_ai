@@ -1,14 +1,12 @@
+// Copyright (c) 2026 Ahmad Mansour. All rights reserved.
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use axum::body::Body;
 use axum::http::{header, StatusCode, Uri};
 use axum::response::Response;
-use rust_embed::RustEmbed;
 
-#[derive(RustEmbed)]
-#[folder = "frontend/dist/"]
-struct EmbeddedFrontend;
-
+const FRONTEND_DIR: &str = "frontend/dist/";
 const INDEX: &str = "index.html";
 
 /// Set by the server when TLS is active so HSTS is only ever emitted over
@@ -43,18 +41,24 @@ fn content_type_for(path: &str) -> &'static str {
     }
 }
 
+fn read_frontend_file(path: &str) -> Option<Vec<u8>> {
+    let mut full = PathBuf::from(FRONTEND_DIR);
+    full.push(path);
+    std::fs::read(full).ok()
+}
+
 pub async fn serve_embedded(uri: Uri) -> Response<Body> {
     let mut path = uri.path().trim_start_matches('/').to_string();
     if path.is_empty() {
         path = INDEX.to_string();
     }
 
-    let data = match EmbeddedFrontend::get(&path) {
-        Some(file) => file.data.into_owned(),
-        None => match EmbeddedFrontend::get(INDEX) {
-            Some(file) => {
+    let data = match read_frontend_file(&path) {
+        Some(bytes) => bytes,
+        None => match read_frontend_file(INDEX) {
+            Some(bytes) => {
                 path = INDEX.to_string();
-                file.data.into_owned()
+                bytes
             }
             None => {
                 return Response::builder()
