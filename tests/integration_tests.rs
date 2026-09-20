@@ -1014,8 +1014,12 @@ fn test_build_rag_context() {
 
     let context =
         vortex_atoms_ai::knowledge_import::build_rag_context(&store, "programming", 2).unwrap();
-    assert!(context.contains("Relevant context"));
-    assert!(context.contains("[1]"));
+    // Stage 5 trust boundary: retrieved chunks ship inside UNTRUSTED
+    // delimiters instead of the old bare "Relevant context" concatenation.
+    assert!(context.contains("UNTRUSTED"));
+    assert!(context.contains("<chunk"));
+    assert!(context.contains("Rust is a systems programming language"));
+    assert!(context.contains("[End of retrieved context]"));
 }
 
 // ============================================================

@@ -190,6 +190,10 @@ allocation-light fast path, with a 1024-token context).
 
 Send a chat message and get a response.
 
+> **Stateless per request:** the server rebuilds conversation history from
+> the `messages` array on every call. No history carries over between
+> requests or clients — send the full conversation each time.
+
 **Request:**
 ```json
 {
@@ -231,6 +235,9 @@ Send a chat message and get a response.
 
 Generate text from a prompt.
 
+> **Stateless:** each call starts with a cleared history — prior requests
+> (including other clients') never influence the output.
+
 **Request:**
 ```json
 {
@@ -261,6 +268,9 @@ Generate text from a prompt.
 #### POST /batch
 
 Generate text for multiple prompts.
+
+> **Isolated items:** history is reset per item, so batch entries cannot
+> observe each other through the shared engine.
 
 **Request:**
 ```json
