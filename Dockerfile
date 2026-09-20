@@ -47,6 +47,9 @@ RUN cargo build --release 2>/dev/null || true
 COPY src/ src/
 COPY knowledge/ knowledge/
 
+# Copy frontend build for rust-embed
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+
 # Build backend
 RUN touch src/main.rs && cargo build --release --bin vortex_api
 
