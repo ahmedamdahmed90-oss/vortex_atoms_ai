@@ -28,6 +28,3 @@ $outPath = Join-Path -Path $outPath -ChildPath $Tag
 
 Write-Host ""
 Write-Host "✅ Data room generated at $outPath" -ForegroundColor Green
-
-# Clean up temp script
-Remove-Item $pyPath -Force -ErrorAction SilentlyContinue
