@@ -47,6 +47,26 @@ pub struct KernelIngress {
 }
 
 /// Running 5-Kernel Matrix handle.
+///
+/// Stage 12 kernel contracts (audited, unchanged behavior):
+///
+/// - **K01 UI interaction**: input = `UiInput`; output = `RouteIntent` to K02.
+///   Pure router, no model access. Exits on `Shutdown` or channel close.
+/// - **K02 router + vector DB**: input = `RouteIntent` / `RegisterKnowledgeFragment`;
+///   output = `ExecuteLogic` (K03) / `RenderMedia` (K04). Owns the
+///   `KnowledgeOrchestratorState` load/evict path. Bounded mpsc (256) gives
+///   backpressure: senders await instead of growing queues.
+/// - **K03 code/logic + LLM**: input = `ExecuteLogic` / `LlmGenerate`;
+///   holds the optional shared `LlmInference`. Long blocking generations
+///   serialize here by design (see `ApiState` concurrency model).
+/// - **K04 multimodal/media**: input = `RenderMedia`; renderer only.
+/// - **K05 supervisor/watchdog**: 30s tick + `PurgeInactiveFragments`;
+///   evicts stale fragments, never restarts peers (no restart loops by design).
+///
+/// Failure model: a panicked kernel task is NOT restarted (deliberate — no
+/// aggressive restart loops). Its mpsc receiver drops, so directed sends
+/// fail fast instead of black-holing. Use [`kernel_liveness`](Self::kernel_liveness)
+/// to observe task health; broadcast events carry `ShutdownRequested`.
 pub struct FiveKernelMatrix {
     ingress: KernelIngress,
     events: broadcast::Sender<IkcEvent>,
@@ -143,6 +163,32 @@ impl FiveKernelMatrix {
 
     pub fn subscribe_events(&self) -> broadcast::Receiver<IkcEvent> {
         self.events.subscribe()
+    }
+
+    /// Non-consuming liveness probe, index-aligned to kernels 01–05.
+    /// Returns `(kernel_label, alive)`; a finished task means that kernel
+    /// has exited (clean shutdown or panic — no silent resurrection).
+    pub fn kernel_liveness(&self) -> [(&'static str, bool); 5] {
+        const LABELS: [&str; 5] = [
+            "Kernel_01",
+            "Kernel_02",
+            "Kernel_03",
+            "Kernel_04",
+            "Kernel_05",
+        ];
+        let mut out = [("", false); 5];
+        for (slot, label) in out.iter_mut().zip(LABELS) {
+            *slot = (label, false);
+        }
+        for (i, handle) in self.handles.iter().enumerate().take(5) {
+            out[i] = (LABELS[i], !handle.is_finished());
+        }
+        out
+    }
+
+    /// True when all five kernel tasks are still running.
+    pub fn all_kernels_alive(&self) -> bool {
+        self.kernel_liveness().iter().all(|(_, alive)| *alive)
     }
 
     /// Submit a user input into Kernel_01.
@@ -244,5 +290,27 @@ impl FiveKernelMatrix {
         while let Some(handle) = self.handles.pop() {
             let _ = handle.await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn liveness_reports_all_alive_then_shutdown() {
+        let matrix = FiveKernelMatrix::spawn(FiveKernelMatrixConfig::default());
+        assert!(matrix.all_kernels_alive());
+        assert_eq!(matrix.kernel_liveness().len(), 5);
+        matrix.shutdown().await;
+    }
+
+    #[test]
+    fn default_budget_matches_resource_budget() {
+        let cfg = FiveKernelMatrixConfig::default();
+        assert_eq!(
+            cfg.memory_budget_bytes,
+            crate::atom::ResourceBudget::default().max_memory_bytes
+        );
     }
 }
