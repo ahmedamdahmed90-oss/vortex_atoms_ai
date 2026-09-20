@@ -92,7 +92,7 @@ jobs:
 
       - name: Build release binary (with embedded SBOM)
         run: |
-          cargo build --release --bin vortex_api
+          cargo build --release --features learner --bin vortex_api
 
       - name: Package binary (Unix)
         if: matrix.os != 'windows-latest'
