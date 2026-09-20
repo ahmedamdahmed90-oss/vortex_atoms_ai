@@ -33,7 +33,7 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo HEAD~10)..HEAD > /tmp/changelog.txt
+          git log --pretty=format:"- %s" $(git rev-list --tags --max-count=1)..HEAD > /tmp/changelog.txt
 
       - name: Create Release
         id: create_release
