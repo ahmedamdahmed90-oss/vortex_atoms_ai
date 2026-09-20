@@ -113,6 +113,14 @@ jobs:
           fail_ci_if_error: false
         continue-on-error: true
 
+      - name: Cleanup runner disk
+        if: always()
+        run: |
+          rm -rf target/debug/deps/*.o target/debug/deps/*.rmeta target/debug/build 2>/dev/null || true
+          rm -rf ~/.cargo/registry/src 2>/dev/null || true
+          rm -rf ~/.cargo/git/db 2>/dev/null || true
+          df -h /
+
   # ========================================
   # Frontend (React/TypeScript) CI
   # ========================================
