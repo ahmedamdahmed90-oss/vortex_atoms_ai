@@ -1,8 +1,94 @@
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::VortexAtomsError;
 use crate::llm_embed::VectorStore;
 use crate::Result;
+
+/// Maximum single-file size accepted by directory import (16 MiB).
+/// Larger files are reported as skipped, never read into memory.
+pub const MAX_IMPORT_FILE_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Structured result for directory imports: every file is accounted for,
+/// so partial failures can never vanish silently.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportReport {
+    pub succeeded_files: usize,
+    pub failed_files: usize,
+    pub skipped_files: usize,
+    pub chunks: usize,
+    pub errors: Vec<String>,
+}
+
+impl ImportReport {
+    pub fn has_failures(&self) -> bool {
+        self.failed_files > 0
+    }
+
+    pub fn summary(&self) -> String {
+        format!(
+            "{} file(s) imported ({} chunks), {} failed, {} skipped",
+            self.succeeded_files, self.chunks, self.failed_files, self.skipped_files
+        )
+    }
+}
+
+/// Text extensions accepted by directory import. Binary formats (`.tcz`,
+/// `.bin`) belong to the fragment registry, not the text importer.
+fn is_supported_extension(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|e| e.to_str()),
+        Some(
+            "txt"
+                | "md"
+                | "rs"
+                | "py"
+                | "js"
+                | "ts"
+                | "json"
+                | "toml"
+                | "yaml"
+                | "yml"
+                | "html"
+                | "css"
+                | "c"
+                | "cpp"
+                | "h"
+                | "java"
+                | "kt"
+                | "swift"
+                | "go"
+                | "rb"
+                | "php"
+                | "scala"
+                | "r"
+                | "m"
+                | "mm"
+                | "pl"
+                | "lua"
+                | "zig"
+                | "nim"
+                | "dart"
+                | "tex"
+                | "bib"
+                | "rst"
+                | "csv"
+                | "xml"
+                | "ini"
+                | "cfg"
+                | "conf"
+                | "sh"
+                | "bat"
+                | "ps1"
+                | "sql"
+                | "graphql"
+                | "proto"
+                | "gradle"
+                | "cmake"
+        )
+    )
+}
 
 pub struct KnowledgeImporter {
     chunk_size: usize,
@@ -52,73 +138,99 @@ impl KnowledgeImporter {
         self.import_text(store, stem, &content)
     }
 
+    /// Import a directory, returning the total chunk count.
+    ///
+    /// Kept for backwards compatibility; per-file failures are counted but
+    /// not surfaced. Prefer [`import_directory_report`](Self::import_directory_report)
+    /// when failure observability matters.
     pub fn import_directory(&self, store: &mut VectorStore, dir: &Path) -> Result<usize> {
-        let mut total = 0;
+        Ok(self.import_directory_report(store, dir)?.chunks)
+    }
+
+    /// Import a directory with a full per-file accounting.
+    ///
+    /// Safety rules (defense in depth behind the API path sandbox):
+    /// - symlinks are never followed (skipped + counted);
+    /// - files larger than [`MAX_IMPORT_FILE_BYTES`] are skipped unread;
+    /// - unsupported extensions are skipped (previously silent, now counted);
+    /// - unreadable entries and per-file import errors are recorded as
+    ///   failures with file-name-only messages (no full paths leak).
+    pub fn import_directory_report(
+        &self,
+        store: &mut VectorStore,
+        dir: &Path,
+    ) -> Result<ImportReport> {
+        let mut report = ImportReport::default();
 
         let entries = std::fs::read_dir(dir).map_err(VortexAtomsError::Io)?;
 
         for entry in entries {
-            let entry = entry.map_err(VortexAtomsError::Io)?;
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => {
+                    report.failed_files += 1;
+                    report
+                        .errors
+                        .push(format!("unreadable directory entry: {e}"));
+                    continue;
+                }
+            };
             let path = entry.path();
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "?".to_string());
 
-            if path.is_file() {
-                if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                    if matches!(
-                        ext,
-                        "txt"
-                            | "md"
-                            | "rs"
-                            | "py"
-                            | "js"
-                            | "ts"
-                            | "json"
-                            | "toml"
-                            | "yaml"
-                            | "yml"
-                            | "html"
-                            | "css"
-                            | "c"
-                            | "cpp"
-                            | "h"
-                            | "java"
-                            | "kt"
-                            | "swift"
-                            | "go"
-                            | "rb"
-                            | "php"
-                            | "scala"
-                            | "r"
-                            | "m"
-                            | "mm"
-                            | "pl"
-                            | "lua"
-                            | "zig"
-                            | "nim"
-                            | "dart"
-                            | "tex"
-                            | "bib"
-                            | "rst"
-                            | "csv"
-                            | "xml"
-                            | "ini"
-                            | "cfg"
-                            | "conf"
-                            | "sh"
-                            | "bat"
-                            | "ps1"
-                            | "sql"
-                            | "graphql"
-                            | "proto"
-                            | "gradle"
-                            | "cmake"
-                    ) {
-                        total += self.import_file(store, &path).unwrap_or(0);
-                    }
+            // Never follow symlinks: an attacker-controlled directory could
+            // otherwise redirect reads outside the sandboxed tree.
+            if entry.file_type().map(|t| t.is_symlink()).unwrap_or(false) {
+                report.skipped_files += 1;
+                report.errors.push(format!("skipped symlink: {name}"));
+                continue;
+            }
+
+            if !path.is_file() {
+                report.skipped_files += 1;
+                continue;
+            }
+
+            if !is_supported_extension(&path) {
+                report.skipped_files += 1;
+                continue;
+            }
+
+            match std::fs::metadata(&path) {
+                Ok(meta) if meta.len() > MAX_IMPORT_FILE_BYTES => {
+                    report.skipped_files += 1;
+                    report.errors.push(format!(
+                        "skipped oversized file ({} bytes): {name}",
+                        meta.len()
+                    ));
+                    continue;
+                }
+                Err(e) => {
+                    report.failed_files += 1;
+                    report.errors.push(format!("cannot stat {name}: {e}"));
+                    continue;
+                }
+                _ => {}
+            }
+
+            match self.import_file(store, &path) {
+                Ok(n) => {
+                    report.succeeded_files += 1;
+                    report.chunks += n;
+                }
+                Err(e) => {
+                    report.failed_files += 1;
+                    report
+                        .errors
+                        .push(format!("failed to import {name}: {}", e.public_message()));
                 }
             }
         }
 
-        Ok(total)
+        Ok(report)
     }
 
     fn chunk_text(&self, text: &str) -> Vec<String> {
@@ -235,6 +347,127 @@ mod tests {
     fn chunk_empty_and_short() {
         assert_eq!(importer().chunk_text(""), vec![String::new()]);
         assert_eq!(importer().chunk_text("hi"), vec!["hi".to_string()]);
+    }
+
+    #[test]
+    fn report_valid_and_unsupported_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "hello world ".repeat(50)).unwrap();
+        std::fs::write(dir.path().join("b.md"), "# title\n\nbody ".repeat(50)).unwrap();
+        std::fs::write(dir.path().join("c.exe"), b"binary").unwrap();
+
+        let mut store = VectorStore::new(16);
+        let report = importer()
+            .import_directory_report(&mut store, dir.path())
+            .unwrap();
+        assert_eq!(report.succeeded_files, 2);
+        assert_eq!(report.skipped_files, 1); // c.exe
+        assert_eq!(report.failed_files, 0);
+        assert!(report.chunks > 0);
+        assert!(!report.has_failures());
+        assert!(report.summary().contains("2 file(s) imported"));
+    }
+
+    #[test]
+    fn report_empty_and_unicode_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("empty.txt"), "").unwrap();
+        std::fs::write(dir.path().join("arabic.txt"), "الذكاء الاصطناعي ".repeat(60)).unwrap();
+
+        let mut store = VectorStore::new(16);
+        let report = importer()
+            .import_directory_report(&mut store, dir.path())
+            .unwrap();
+        assert_eq!(report.succeeded_files, 2);
+        assert_eq!(report.failed_files, 0);
+    }
+
+    #[test]
+    fn report_partial_failure_is_observable() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("good.txt"), "valid content ".repeat(50)).unwrap();
+        // Invalid UTF-8: read_to_string fails -> failed_files, not silent zero.
+        std::fs::write(dir.path().join("bad.txt"), b"\xff\xfe\x00invalid").unwrap();
+
+        let mut store = VectorStore::new(16);
+        let report = importer()
+            .import_directory_report(&mut store, dir.path())
+            .unwrap();
+        assert_eq!(report.succeeded_files, 1);
+        assert_eq!(report.failed_files, 1);
+        assert_eq!(report.errors.len(), 1);
+        assert!(report.has_failures());
+    }
+
+    #[test]
+    fn report_duplicate_import_counts_both() {
+        // Documents current no-dedup behavior: re-import is observable
+        // through the report rather than silently merged.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("dup.txt"), "same content ".repeat(50)).unwrap();
+
+        let mut store = VectorStore::new(16);
+        let first = importer()
+            .import_directory_report(&mut store, dir.path())
+            .unwrap();
+        let second = importer()
+            .import_directory_report(&mut store, dir.path())
+            .unwrap();
+        assert_eq!(first.chunks, second.chunks);
+        assert_eq!(store.len(), first.chunks * 2);
+    }
+
+    #[test]
+    fn report_malformed_inputs() {
+        let mut store = VectorStore::new(16);
+        // Not a directory -> Err (propagated, not swallowed).
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("f.txt");
+        std::fs::write(&file, "x").unwrap();
+        assert!(importer()
+            .import_directory_report(&mut store, &file)
+            .is_err());
+        assert!(importer()
+            .import_directory_report(&mut store, &dir.path().join("missing"))
+            .is_err());
+    }
+
+    #[test]
+    fn report_skips_oversized_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let big = dir.path().join("big.txt");
+        let chunk = vec![b'a'; 1024 * 1024];
+        let f = std::fs::File::create(&big).unwrap();
+        use std::io::Write;
+        let mut f = f;
+        for _ in 0..(MAX_IMPORT_FILE_BYTES / 1024 / 1024 + 1) {
+            f.write_all(&chunk).unwrap();
+        }
+        drop(f);
+
+        let mut store = VectorStore::new(16);
+        let report = importer()
+            .import_directory_report(&mut store, dir.path())
+            .unwrap();
+        assert_eq!(report.succeeded_files, 0);
+        assert_eq!(report.skipped_files, 1);
+        assert!(store.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn report_never_follows_symlinks() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("real.txt");
+        std::fs::write(&target, "secret ".repeat(50)).unwrap();
+        std::os::unix::fs::symlink(&target, dir.path().join("link.txt")).unwrap();
+
+        let mut store = VectorStore::new(16);
+        let report = importer()
+            .import_directory_report(&mut store, dir.path())
+            .unwrap();
+        assert_eq!(report.succeeded_files, 1);
+        assert_eq!(report.skipped_files, 1);
     }
 
     #[test]

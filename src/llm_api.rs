@@ -1030,8 +1030,13 @@ async fn handle_knowledge_import(
                     Err(e) => import_error = Some(e.public_message()),
                 }
             } else if path.is_dir() {
-                match importer.import_directory(&mut store, path) {
-                    Ok(n) => total += n,
+                match importer.import_directory_report(&mut store, path) {
+                    Ok(report) => {
+                        total += report.chunks;
+                        if report.has_failures() {
+                            import_error = Some(format!("partial import: {}", report.summary()));
+                        }
+                    }
                     Err(e) => import_error = Some(e.public_message()),
                 }
             } else {
@@ -1553,14 +1558,18 @@ fn import_knowledge_at_startup() -> VectorStore {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            match importer.import_directory(&mut store, &path) {
-                Ok(n) => {
-                    if n > 0 {
+            match importer.import_directory_report(&mut store, &path) {
+                Ok(report) => {
+                    if report.chunks > 0 || report.has_failures() {
                         println!(
-                            "[VortexAPI] Imported {n} chunks from knowledge/{}",
-                            path.file_name().unwrap_or_default().to_string_lossy()
+                            "[VortexAPI] knowledge/{}: {}",
+                            path.file_name().unwrap_or_default().to_string_lossy(),
+                            report.summary()
                         );
-                        total_chunks += n;
+                        for e in &report.errors {
+                            eprintln!("[VortexAPI] knowledge import note: {e}");
+                        }
+                        total_chunks += report.chunks;
                     }
                 }
                 Err(e) => eprintln!(
