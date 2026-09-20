@@ -601,6 +601,40 @@ mod tests {
         assert_eq!(first, second);
     }
 
+    /// Stage 14 micro-benchmarks: chunking throughput + RAG build latency.
+    /// Ignored in normal runs; execute explicitly and record numbers.
+    #[test]
+    #[ignore]
+    fn bench_chunk_and_rag_latency() {
+        let importer = KnowledgeImporter::default_config();
+        let text = "Vortex Atoms AI local-first retrieval Takes Arabic العربية well. ".repeat(2000);
+        let bytes = text.len();
+        let start = std::time::Instant::now();
+        let chunks = importer.chunk_text(&text);
+        let chunk_us = start.elapsed().as_micros();
+        println!(
+            "chunk_text {}KB -> {} chunks: {} µs ({:.1} MB/s)",
+            bytes / 1024,
+            chunks.len(),
+            chunk_us,
+            bytes as f64 / chunk_us.max(1) as f64
+        );
+
+        let mut store = VectorStore::new(64);
+        importer.import_text(&mut store, "bench", &text).unwrap();
+        let builder = ContextBuilder::default();
+        let start = std::time::Instant::now();
+        let iters = 50;
+        for _ in 0..iters {
+            let _ = builder.build(&store, "arabic retrieval").unwrap();
+        }
+        println!(
+            "rag_build ({} chunks in store): {} µs/build",
+            store.len(),
+            start.elapsed().as_micros() / iters as u128
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn report_never_follows_symlinks() {

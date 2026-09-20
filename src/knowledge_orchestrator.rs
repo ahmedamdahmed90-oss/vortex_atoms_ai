@@ -543,21 +543,68 @@ mod tests {
         assert_eq!(state.metrics.atom_cache_hits, 1);
     }
 
+    /// Stage 14 micro-benchmark: atom registry insert/evict throughput.
+    /// Ignored in normal runs; execute explicitly and record numbers.
+    #[test]
+    #[ignore]
+    fn bench_atom_registry_throughput() {
+        let mut state = KnowledgeOrchestratorState::new(100, 10_000);
+        for i in 0..1000 {
+            state.register_path(
+                format!("frag-{i}"),
+                "bench",
+                format!("semantic hint number {i}"),
+                format!("knowledge/{i}.tcz"),
+            );
+        }
+        let start = std::time::Instant::now();
+        let iters = 200;
+        for _ in 0..iters {
+            let _ = state.select_descriptors("bench", "semantic hint number 500", 3);
+        }
+        println!(
+            "atom_select (1000 registered): {} µs/select",
+            start.elapsed().as_micros() / iters as u128
+        );
+
+        let descriptor = state.registry.get("frag-1").unwrap().clone();
+        let bytes: Arc<[u8]> = Arc::from(vec![0u8; 4096].into_boxed_slice());
+        let start = std::time::Instant::now();
+        for _ in 0..iters {
+            state.insert_loaded(&descriptor, bytes.clone());
+            state.touch_loaded_bytes("frag-1");
+        }
+        println!(
+            "atom_insert+touch (4KB): {} µs/op",
+            start.elapsed().as_micros() / iters as u128
+        );
+    }
+
     #[test]
     fn eviction_records_metrics() {
-        let mut state = KnowledgeOrchestratorState::new(1, 1_000);
+        let mut state = KnowledgeOrchestratorState::new(2, 1_000);
         state.register_path("frag-1", "x", "alpha", "knowledge/1.tcz");
         state.register_path("frag-2", "x", "beta", "knowledge/2.tcz");
+        state.register_path("frag-3", "x", "gamma", "knowledge/3.tcz");
 
+        // Strictly ordered access counts so the victim is deterministic
+        // regardless of millisecond timestamp ties or HashMap order.
         let first = state.registry.get("frag-1").unwrap().clone();
         let second = state.registry.get("frag-2").unwrap().clone();
+        let third = state.registry.get("frag-3").unwrap().clone();
         state.insert_loaded(&first, Arc::from(vec![0u8; 8].into_boxed_slice()));
+        state.touch_loaded_bytes("frag-1");
+        state.touch_loaded_bytes("frag-1");
         state.insert_loaded(&second, Arc::from(vec![0u8; 8].into_boxed_slice()));
+        state.touch_loaded_bytes("frag-2");
+        // Counts are now frag-1:2, frag-2:1, frag-3:0 -> frag-3 evicted.
+        state.insert_loaded(&third, Arc::from(vec![0u8; 8].into_boxed_slice()));
 
-        // Capacity 1 forces eviction of the coldest fragment.
-        assert_eq!(state.active_atom_count(), 1);
-        assert_eq!(state.metrics.atom_load_count, 2);
+        assert_eq!(state.active_atom_count(), 2);
+        assert_eq!(state.metrics.atom_load_count, 3);
         assert_eq!(state.metrics.atom_eviction_count, 1);
+        assert_eq!(state.atom_state_of("frag-1"), Some(AtomState::Active));
         assert_eq!(state.atom_state_of("frag-2"), Some(AtomState::Active));
+        assert_eq!(state.atom_state_of("frag-3"), Some(AtomState::Evicted));
     }
 }

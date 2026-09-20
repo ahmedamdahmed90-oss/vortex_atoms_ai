@@ -285,6 +285,22 @@ mod tests {
         assert_eq!(via_alias.dimensions(), 64);
     }
 
+    /// Stage 14 micro-benchmark: hash-embed throughput (D=64).
+    /// Ignored in normal runs; execute explicitly and record numbers.
+    #[test]
+    #[ignore]
+    fn bench_hash_embed_throughput() {
+        let model = FastHashEmbedder::new(64);
+        let text = "the quick brown fox jumps over arabic الثعلب السريع ".repeat(20);
+        let iters = 2000;
+        let start = std::time::Instant::now();
+        for _ in 0..iters {
+            let _ = model.embed(&text).unwrap();
+        }
+        let per_us = start.elapsed().as_micros() / iters as u128;
+        println!("hash_embed D=64 ~1KB text: {per_us} µs/embed");
+    }
+
     /// Scaling benchmark: linear scan must grow ~linearly with N.
     /// Ignored in normal runs; execute explicitly and record numbers.
     #[test]
