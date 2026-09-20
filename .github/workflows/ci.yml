@@ -167,13 +167,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check facts are fresh
-        run: powershell -ExecutionPolicy Bypass -File tools/check_facts_fresh.ps1
+        run: pwsh -ExecutionPolicy Bypass -File tools/check_facts_fresh.ps1
 
       - name: Check no manual numbers
-        run: powershell -ExecutionPolicy Bypass -File tools/check_no_manual_numbers.ps1
+        run: pwsh -ExecutionPolicy Bypass -File tools/check_no_manual_numbers.ps1
 
       - name: Check repo refs
-        run: powershell -ExecutionPolicy Bypass -File tools/check_repo_refs.ps1
+        run: pwsh -ExecutionPolicy Bypass -File tools/check_repo_refs.ps1
 
   # ========================================
   # Docker Build
