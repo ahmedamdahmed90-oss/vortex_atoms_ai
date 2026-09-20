@@ -5,7 +5,8 @@
 
 ## 2026-09-18 — Baseline
 
-**Certified counts:** 155 Rust tests, 354 frontend tests, 54 E2E tests, 99.49% coverage, 0 clippy errors.
+**Certified counts:** 156 Rust tests, 356 frontend tests, 54 E2E tests, 99.49% coverage, 0 
+clippy errors.
 
 **Pilot program:** 90 days free, 40% year-1 discount, 48h SLA.
 
@@ -23,9 +24,9 @@
 ## 2026-09-18 — Market Weekly
 
 ### Metrics
-- `cargo test --features learner --lib`: 155 passed, 0 failed
+- `cargo test --features learner --lib`: 156 passed, 0 failed
 - `cargo clippy --all-targets --features learner -- -D warnings`: 0 errors
-- Frontend: 354 passed, 54 E2E, 99.49% coverage
+- Frontend: 356 passed, 54 E2E, 99.49% coverage
 
 ### Learner Report
 - MRR@5 (hybrid): 0.63

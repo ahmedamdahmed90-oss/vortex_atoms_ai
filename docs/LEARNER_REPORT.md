@@ -1,5 +1,7 @@
 # KNOW-01 Learner Report
 
+> **NOTE:** This document reflects baseline state (2026-09-20). Current certified numbers: 156 Rust / 356 Vitest / 54 E2E. See README.md for live state.
+
 ## Baseline (KNOW-01 close)
 
 All metrics frozen at KNOW-01 merge. Source: `docs/LEARNER_REPORT.md`.

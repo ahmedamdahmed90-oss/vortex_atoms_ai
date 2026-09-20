@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Vortex Atoms AI - واجهة شات عربية ذكية ولوحة تحكم متقدمة" />
+    <meta property="og:title" content="Vortex Atoms AI v0.2.0" />
+    <meta property="og:description" content="Self-learning AI with compliance by design. 156 tests green. Local-first. Arabic-first RTL." />
+    <meta property="og:image" content="/assets/learner-screenshot.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="http://127.0.0.1:8080" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Vortex Atoms AI v0.2.0" />
+    <meta name="twitter:description" content="Self-learning AI with compliance by design. 156 tests green. Local-first. Arabic-first RTL." />
+    <meta name="twitter:image" content="/assets/learner-screenshot.png" />
+    <title>Vortex Atoms AI</title>
+    <!-- Fonts are self-hosted (src/assets/fonts, @font-face in index.css):
+         zero third-party connections, works fully offline. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

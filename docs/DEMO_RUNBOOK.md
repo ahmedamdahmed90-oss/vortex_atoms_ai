@@ -84,7 +84,7 @@ Each step pauses for manual screen capture (no auto screen-recording; weak-machi
 | MRR@5 (hybrid) | 0.63 | LEARNER_REPORT |
 | MRR@5 (vector-only) | 0.36 | LEARNER_REPORT |
 | MRR@5 delta | +0.27 | LEARNER_REPORT |
-| Rust lib tests | 155 passed, 0 failed | README |
+| Rust lib tests | 156 passed, 0 failed | README |
 | Clippy | 0 errors | README |
-| Frontend tests | 354 passed | README |
+| Frontend tests | 356 passed | README |
 | Frontend E2E | 54 passed | README |

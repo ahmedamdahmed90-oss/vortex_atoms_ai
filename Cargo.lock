@@ -6393,6 +6393,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hf-hub",
  "http",
+ "libc",
  "llama-cpp-2",
  "memmap2",
  "mime",

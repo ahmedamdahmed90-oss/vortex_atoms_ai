@@ -1,6 +1,7 @@
 # KNOW-01 One-Pager — VortexAtomsAI v0.2.0
 
 > **Copyright (c) 2026 Ahmad Mansour.** All rights reserved.
+> **NOTE:** This document reflects v0.2.0 state (2026-09-20). Current certified numbers: 156 Rust / 356 Vitest / 54 E2E. See README.md for live state.
 > Honesty clause: every claim maps to a README / LEARNER_REPORT number.
 
 ## Generation Instructions
