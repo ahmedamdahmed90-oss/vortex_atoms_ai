@@ -10,6 +10,7 @@
 # Environment
 .env
 .env.*
+auth.json
 
 # Node / Frontend
 node_modules/
@@ -33,6 +34,7 @@ api_stdout.log
 clippy_out*.txt
 check_err.txt
 check_out.txt
+temp/
 
 # IDE / OS
 .vscode/
@@ -54,6 +56,16 @@ docs/data_room/test_render/
 *.exe
 *.msi
 *.zip
+
+# Models (never commit weights)
+models/*.gguf
+models/*.bin
+models/*.safetensors
+
+# Learner state
+*.localstate
+*.db
+learner_state/
 
 # Python
 __pycache__/

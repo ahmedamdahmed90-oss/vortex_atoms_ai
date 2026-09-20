@@ -362,10 +362,33 @@
     "source_section": "config"
   },
   "fastpath_max_ms": {
-    "value": 256,
-    "command": "N/A",
-    "source_file": "PERF_REPORT.md",
-    "source_line_or_table": "fastpath max frame size",
-    "source_section": "0.2 Bench matrix"
+      "value": 256,
+      "command": "N/A",
+      "source_file": "PERF_REPORT.md",
+      "source_line_or_table": "fastpath max frame size",
+      "source_section": "0.2 Bench matrix"
+    },
+    "repository": {
+      "repo_url": {
+        "value": "https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai",
+        "command": "git remote -v",
+        "source_file": "README.md",
+        "source_line_or_table": "badges",
+        "source_section": "header"
+      },
+      "repo_sha": {
+        "value": "36a8760d0446a81fa27875e43ae83054991ef86f",
+        "command": "git rev-parse HEAD",
+        "source_file": "docs/REPO_STATUS.md",
+        "source_line_or_table": "commit hash",
+        "source_section": "current"
+      },
+      "repo_name": {
+        "value": "vortex_atoms_ai",
+        "command": "git remote -v",
+        "source_file": "README.md",
+        "source_line_or_table": "badges",
+        "source_section": "header"
+      }
+    }
   }
-}
