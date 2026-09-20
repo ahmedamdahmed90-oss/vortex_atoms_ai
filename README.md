@@ -25,7 +25,7 @@ Built with Rust for performance, React for user experience, and Arabic-first RTL
 
 ### Option 1: Download Release (Recommended)
 
-1. Download from [GitHub Releases](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/releases/tag/v0.2.0)
+1. Download from [GitHub Releases](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/releases/tag/v0.3.0)
 2. Extract `vortex-atoms-ai-windows-amd64.zip`
 3. Run `vortex_api.exe`
 
