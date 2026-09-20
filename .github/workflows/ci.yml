@@ -25,7 +25,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev
+          sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev g++
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -61,17 +61,22 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Run clippy
-        run: cargo clippy --features learner,tray -- -D warnings
+        run: cargo clippy --all-targets --features learner,tray -- -D warnings
 
       - name: Build backend
         run: cargo build --release --features learner,tray
 
-      - name: Run tests
+      - name: Run tests (no features)
+        run: cargo test --verbose
+
+      - name: Run tests (learner)
+        run: cargo test --features learner --verbose
+
+      - name: Run tests (learner,tray)
         run: cargo test --features learner,tray --verbose
 
       - name: Verify knowledge artifacts are reproducible
         run: |
-          for m in bio_medical engineering_expert finance_math global_humanities; do :; done
           python3 tools/compile_bio_medical_module.py
           python3 tools/compile_engineering_expert_module.py
           python3 tools/compile_finance_math_module.py
@@ -124,14 +129,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run linter
-        run: npm run lint
+      - name: Run oxlint
+        run: npx oxlint --deny-warnings
+
+      - name: Run lint:strict
+        run: npm run lint:strict
 
       - name: Run type check
         run: npx tsc --noEmit
 
-      - name: Run tests
+      - name: Run unit tests
         run: npm run test -- --coverage
+
+      - name: Run e2e tests
+        run: npm run test:e2e
+        continue-on-error: true
 
       - name: Build frontend
         run: npm run build
@@ -142,6 +154,26 @@ jobs:
           directory: ./frontend/coverage
           flags: frontend
           fail_ci_if_error: false
+
+  # ========================================
+  # Data Room & Facts Freshness
+  # ========================================
+  data-room:
+    name: Data Room & Facts
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check facts are fresh
+        run: powershell -ExecutionPolicy Bypass -File tools/check_facts_fresh.ps1
+
+      - name: Check no manual numbers
+        run: powershell -ExecutionPolicy Bypass -File tools/check_no_manual_numbers.ps1
+
+      - name: Check repo refs
+        run: powershell -ExecutionPolicy Bypass -File tools/check_repo_refs.ps1
 
   # ========================================
   # Docker Build

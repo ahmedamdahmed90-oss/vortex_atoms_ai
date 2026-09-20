@@ -596,6 +596,11 @@ loaders, documented in `docs/DEVELOPER_GUIDE.md`.
 - [Investor Data Room](docs/data_room/00_INDEX.md)
 - [Support](SUPPORT.md)
 - [Changelog](CHANGELOG.md)
+- [Known Issues](KNOWN_ISSUES.md)
+
+## Known Issues
+
+3 Firefox E2E flakes (retry-green). See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for details and [GitHub Issues](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues?q=label%3Aflaky) for tracking.
 
 ## License
 
