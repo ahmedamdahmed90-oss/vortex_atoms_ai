@@ -29,7 +29,7 @@ impl Default for FiveKernelMatrixConfig {
         Self {
             ikc_channel_capacity: 256,
             broadcast_channel_capacity: 512,
-            memory_budget_bytes: 256 * 1024 * 1024,
+            memory_budget_bytes: crate::atom::ResourceBudget::default().max_memory_bytes,
             supervisor_default_retention_ms: 60_000,
             llm_config: None,
         }

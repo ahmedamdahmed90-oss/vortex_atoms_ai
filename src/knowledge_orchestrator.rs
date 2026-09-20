@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use crate::atom::{AtomMetrics, AtomState};
 use crate::state::{deterministic_embedding, now_epoch_ms, SharedState};
 use crate::token_cache::{CognitiveTokenBlock, HotTokenCache, TokenCache};
 
@@ -126,6 +127,8 @@ pub struct KnowledgeOrchestratorState {
     pub loaded: HashMap<String, LoadedKnowledgeFragment>,
     pub token_cache: HotTokenCache,
     pub max_loaded_fragments: usize,
+    /// Stage 7 lifecycle counters (loads, evictions, resident hits/misses).
+    pub metrics: AtomMetrics,
 }
 
 impl KnowledgeOrchestratorState {
@@ -135,7 +138,33 @@ impl KnowledgeOrchestratorState {
             loaded: HashMap::new(),
             token_cache: HotTokenCache::new(max_cached_tokens),
             max_loaded_fragments: max_loaded_fragments.max(1),
+            metrics: AtomMetrics::default(),
         }
+    }
+
+    /// Atom-model view of one fragment: registered → active/suspended when
+    /// resident, evicted when known but unloaded. Pure observer, no mutation.
+    pub fn atom_state_of(&self, fragment_id: &str) -> Option<AtomState> {
+        if self.loaded.contains_key(fragment_id) {
+            Some(AtomState::Active)
+        } else if self.registry.contains_key(fragment_id) {
+            Some(AtomState::Evicted)
+        } else {
+            None
+        }
+    }
+
+    /// Resident atom count (Stage 7 budget input).
+    pub fn active_atom_count(&self) -> usize {
+        self.loaded.len()
+    }
+
+    /// Estimated resident bytes across loaded fragments.
+    pub fn resident_bytes(&self) -> usize {
+        self.loaded
+            .values()
+            .map(|fragment| fragment.bytes.len())
+            .sum()
     }
 
     pub fn register(&mut self, descriptor: KnowledgeFragmentDescriptor) {
@@ -183,10 +212,17 @@ impl KnowledgeOrchestratorState {
     }
 
     pub fn touch_loaded_bytes(&mut self, fragment_id: &str) -> Option<Arc<[u8]>> {
-        self.loaded.get_mut(fragment_id).map(|fragment| {
-            fragment.touch();
-            fragment.bytes.clone()
-        })
+        match self.loaded.get_mut(fragment_id) {
+            Some(fragment) => {
+                fragment.touch();
+                self.metrics.record_hit();
+                Some(fragment.bytes.clone())
+            }
+            None => {
+                self.metrics.record_miss();
+                None
+            }
+        }
     }
 
     pub fn insert_loaded(
@@ -198,6 +234,7 @@ impl KnowledgeOrchestratorState {
             descriptor.id.clone(),
             LoadedKnowledgeFragment::new(descriptor, bytes),
         );
+        self.metrics.record_load();
         self.enforce_loaded_capacity()
     }
 
@@ -263,6 +300,7 @@ impl KnowledgeOrchestratorState {
         action: KnowledgeLoadAction,
     ) -> Option<KnowledgeLoadReport> {
         let removed = self.loaded.remove(fragment_id)?;
+        self.metrics.record_eviction();
         let report = KnowledgeLoadReport {
             fragment_id: removed.id.clone(),
             intent_label: removed.intent_label.clone(),
@@ -461,5 +499,65 @@ fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
         0.0
     } else {
         dot / (left_norm.sqrt() * right_norm.sqrt())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::atom::AtomState;
+
+    fn test_state() -> KnowledgeOrchestratorState {
+        let mut state = KnowledgeOrchestratorState::new(8, 1_000);
+        state.register_path("frag-a", "code_logic", "rust systems", "knowledge/a.tcz");
+        state
+    }
+
+    #[test]
+    fn atom_observers_track_lifecycle() {
+        let mut state = test_state();
+        assert_eq!(state.atom_state_of("frag-a"), Some(AtomState::Evicted));
+        assert_eq!(state.atom_state_of("unknown"), None);
+        assert_eq!(state.active_atom_count(), 0);
+        assert_eq!(state.resident_bytes(), 0);
+
+        let descriptor = state.registry.get("frag-a").unwrap().clone();
+        let bytes: Arc<[u8]> = Arc::from(vec![1u8; 64].into_boxed_slice());
+        state.insert_loaded(&descriptor, bytes);
+        assert_eq!(state.atom_state_of("frag-a"), Some(AtomState::Active));
+        assert_eq!(state.active_atom_count(), 1);
+        assert_eq!(state.resident_bytes(), 64);
+        assert_eq!(state.metrics.atom_load_count, 1);
+    }
+
+    #[test]
+    fn touch_records_hits_and_misses() {
+        let mut state = test_state();
+        assert!(state.touch_loaded_bytes("frag-a").is_none());
+        assert_eq!(state.metrics.atom_cache_misses, 1);
+
+        let descriptor = state.registry.get("frag-a").unwrap().clone();
+        let bytes: Arc<[u8]> = Arc::from(vec![2u8; 32].into_boxed_slice());
+        state.insert_loaded(&descriptor, bytes);
+        assert!(state.touch_loaded_bytes("frag-a").is_some());
+        assert_eq!(state.metrics.atom_cache_hits, 1);
+    }
+
+    #[test]
+    fn eviction_records_metrics() {
+        let mut state = KnowledgeOrchestratorState::new(1, 1_000);
+        state.register_path("frag-1", "x", "alpha", "knowledge/1.tcz");
+        state.register_path("frag-2", "x", "beta", "knowledge/2.tcz");
+
+        let first = state.registry.get("frag-1").unwrap().clone();
+        let second = state.registry.get("frag-2").unwrap().clone();
+        state.insert_loaded(&first, Arc::from(vec![0u8; 8].into_boxed_slice()));
+        state.insert_loaded(&second, Arc::from(vec![0u8; 8].into_boxed_slice()));
+
+        // Capacity 1 forces eviction of the coldest fragment.
+        assert_eq!(state.active_atom_count(), 1);
+        assert_eq!(state.metrics.atom_load_count, 2);
+        assert_eq!(state.metrics.atom_eviction_count, 1);
+        assert_eq!(state.atom_state_of("frag-2"), Some(AtomState::Active));
     }
 }

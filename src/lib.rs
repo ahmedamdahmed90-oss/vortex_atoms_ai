@@ -9,6 +9,7 @@
 //! Tokio tasks linked through asynchronous mpsc and broadcast IKC channels, with
 //! shared state protected by `Arc<RwLock<T>>`.
 
+pub mod atom;
 pub mod bio_medical_module;
 pub mod build_info;
 #[cfg(feature = "dashboard")]

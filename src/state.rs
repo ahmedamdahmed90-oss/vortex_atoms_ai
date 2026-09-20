@@ -208,7 +208,7 @@ impl Default for SupervisorState {
         Self {
             purge_cycles: 0,
             dropped_fragments: 0,
-            memory_budget_bytes: 256 * 1024 * 1024,
+            memory_budget_bytes: crate::atom::ResourceBudget::default().max_memory_bytes,
         }
     }
 }
