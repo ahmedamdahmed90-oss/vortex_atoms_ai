@@ -1,0 +1,15 @@
+title: Vortex Atoms AI
+description: Full-stack, locally-run AI assistant with complete data sovereignty
+theme: jekyll-theme-minimal
+plugins:
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: true
+exclude:
+  - data_room
+  - knowledge
+  - learner
+  - perf
+  - "*.json"
+  - "*.ps1"
