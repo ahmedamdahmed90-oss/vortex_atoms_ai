@@ -1,4 +1,4 @@
-use crate::llm_embed::EmbeddingModel;
+use crate::llm_embed::FastHashEmbedder;
 use crate::Result;
 use std::path::Path;
 
@@ -12,7 +12,7 @@ pub trait NeuralEmbedder: Send {
 }
 
 pub enum UnifiedEmbedder {
-    Hash(EmbeddingModel),
+    Hash(FastHashEmbedder),
     #[cfg(feature = "neural-embed")]
     Onnx(OrtEmbedder),
 }
@@ -73,7 +73,7 @@ pub fn create_embedder(model_dir: Option<&Path>) -> Box<dyn NeuralEmbedder> {
         }
     }
 
-    Box::new(EmbeddingModel::new(NEURAL_DIMENSIONS))
+    Box::new(FastHashEmbedder::new(NEURAL_DIMENSIONS))
 }
 
 #[cfg(feature = "neural-embed")]

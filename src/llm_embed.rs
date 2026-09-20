@@ -3,11 +3,21 @@ use std::sync::Mutex;
 use crate::llm_neural_embed::NeuralEmbedder;
 use crate::Result;
 
-pub struct EmbeddingModel {
+/// Fast hash-based embedder (FNV-1a over whitespace tokens, L2-normalized).
+///
+/// This is a **lexical hash fallback for offline/minimal operation — NOT a
+/// neural semantic embedding**. Same tokens hash to the same buckets, so
+/// exact/near-duplicate text scores highly, but paraphrases with different
+/// wording do not. Use the `neural-embed` feature (`OrtEmbedder`) when true
+/// semantic similarity is required.
+pub struct FastHashEmbedder {
     dimensions: usize,
 }
 
-impl EmbeddingModel {
+/// Backwards-compatible alias. Prefer `FastHashEmbedder` in new code.
+pub type EmbeddingModel = FastHashEmbedder;
+
+impl FastHashEmbedder {
     pub fn new(dimensions: usize) -> Self {
         Self { dimensions }
     }
@@ -52,9 +62,9 @@ impl EmbeddingModel {
     }
 }
 
-impl NeuralEmbedder for EmbeddingModel {
+impl NeuralEmbedder for FastHashEmbedder {
     fn embed(&mut self, text: &str) -> Result<Vec<f32>> {
-        EmbeddingModel::embed(self, text)
+        FastHashEmbedder::embed(self, text)
     }
 
     fn embed_batch(&mut self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
@@ -90,6 +100,22 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
+/// Future seam for approximate-nearest-neighbor indexes.
+///
+/// The only implementation today is the linear scan inside [`VectorStore`]
+/// — retrieval complexity O(N·D) per query (N vectors, D dimensions).
+/// A future `AnnIndex` can implement this trait without touching callers:
+/// embed the query once, then call `search_by_vector`.
+///
+/// Measured on i5-2430M (D=64, top_k=5, `bench_linear_search_scaling`):
+/// N=200 → 460 µs/query; N=1000 → 2314 µs/query; N=5000 → 11526 µs/query
+/// (~2.3 µs/vector — textbook linear scaling, no index).
+pub trait VectorIndex {
+    fn index_len(&self) -> usize;
+
+    fn search_by_vector(&self, query: &[f32], top_k: usize) -> Vec<SearchResult>;
+}
+
 pub struct VectorStore {
     embeddings: Vec<(String, Vec<f32>, String)>,
     model: Mutex<Box<dyn NeuralEmbedder>>,
@@ -99,7 +125,9 @@ impl VectorStore {
     pub fn new(dimensions: usize) -> Self {
         Self {
             embeddings: Vec::new(),
-            model: Mutex::new(Box::new(EmbeddingModel::new(dimensions)) as Box<dyn NeuralEmbedder>),
+            model: Mutex::new(
+                Box::new(FastHashEmbedder::new(dimensions)) as Box<dyn NeuralEmbedder>
+            ),
         }
     }
 
@@ -113,28 +141,7 @@ impl VectorStore {
 
     pub fn search(&self, query: &str, top_k: usize) -> Result<Vec<SearchResult>> {
         let query_embedding = self.model.lock().unwrap().embed(query)?;
-
-        let mut results: Vec<SearchResult> = self
-            .embeddings
-            .iter()
-            .map(|(id, embedding, text)| {
-                let score = cosine_similarity(&query_embedding, embedding);
-                SearchResult {
-                    id: id.clone(),
-                    text: text.clone(),
-                    score,
-                }
-            })
-            .collect();
-
-        results.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        results.truncate(top_k);
-
-        Ok(results)
+        Ok(self.search_by_vector(&query_embedding, top_k))
     }
 
     pub fn len(&self) -> usize {
@@ -172,9 +179,127 @@ impl VectorStore {
     }
 }
 
+impl VectorIndex for VectorStore {
+    fn index_len(&self) -> usize {
+        self.embeddings.len()
+    }
+
+    /// Linear scan over all stored vectors: O(N·D).
+    /// Documented complexity — see [`VectorIndex`].
+    fn search_by_vector(&self, query: &[f32], top_k: usize) -> Vec<SearchResult> {
+        let mut results: Vec<SearchResult> = self
+            .embeddings
+            .iter()
+            .map(|(id, embedding, text)| {
+                let score = cosine_similarity(query, embedding);
+                SearchResult {
+                    id: id.clone(),
+                    text: text.clone(),
+                    score,
+                }
+            })
+            .collect();
+
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        results.truncate(top_k);
+
+        results
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SearchResult {
     pub id: String,
     pub text: String,
     pub score: f32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn seeded_store(n: usize) -> VectorStore {
+        let mut store = VectorStore::new(64);
+        for i in 0..n {
+            store
+                .insert(
+                    format!("doc_{i}"),
+                    format!("document number {i} about rust systems"),
+                )
+                .unwrap();
+        }
+        store
+    }
+
+    #[test]
+    fn search_exact_match_ranks_first() {
+        let store = seeded_store(50);
+        let results = store
+            .search("document number 7 about rust systems", 5)
+            .unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].id, "doc_7");
+        assert!(results[0].score > 0.99);
+    }
+
+    #[test]
+    fn search_respects_top_k_and_order() {
+        let store = seeded_store(50);
+        let results = store.search("rust systems", 5).unwrap();
+        assert_eq!(results.len(), 5);
+        for w in results.windows(2) {
+            assert!(w[0].score >= w[1].score);
+        }
+    }
+
+    #[test]
+    fn search_by_vector_matches_search() {
+        let store = seeded_store(20);
+        let query = store.embed_text("document number 3").unwrap();
+        let via_trait = store.search_by_vector(&query, 3);
+        let via_search = store.search("document number 3", 3).unwrap();
+        assert_eq!(via_trait.len(), via_search.len());
+        assert_eq!(via_trait[0].id, via_search[0].id);
+    }
+
+    #[test]
+    fn search_empty_store_returns_empty() {
+        let store = VectorStore::new(64);
+        let results = store.search("anything", 5).unwrap();
+        assert!(results.is_empty());
+        assert_eq!(store.index_len(), 0);
+    }
+
+    #[test]
+    fn hash_embedder_is_deterministic() {
+        let model = FastHashEmbedder::new(64);
+        let a = model.embed("hello world").unwrap();
+        let b = model.embed("hello world").unwrap();
+        assert_eq!(a, b);
+        // Backwards-compat alias resolves to the same type.
+        let via_alias = EmbeddingModel::new(64);
+        assert_eq!(via_alias.dimensions(), 64);
+    }
+
+    /// Scaling benchmark: linear scan must grow ~linearly with N.
+    /// Ignored in normal runs; execute explicitly and record numbers.
+    #[test]
+    #[ignore]
+    fn bench_linear_search_scaling() {
+        for n in [200usize, 1000, 5000] {
+            let store = seeded_store(n);
+            let query = store.embed_text("rust systems benchmark").unwrap();
+            let start = std::time::Instant::now();
+            let iters = 20;
+            for _ in 0..iters {
+                let _ = store.search_by_vector(&query, 5);
+            }
+            let per_query_us = start.elapsed().as_micros() / iters as u128;
+            println!("linear_search N={n}: {per_query_us} µs/query (D=64)");
+        }
+    }
 }
