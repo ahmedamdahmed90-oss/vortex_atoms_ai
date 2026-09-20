@@ -20,7 +20,7 @@ COPY frontend/ .
 RUN npm run build
 
 # Stage 2: Build Backend
-FROM rust:1.78-slim AS backend-builder
+FROM rust:1.96-slim AS backend-builder
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
