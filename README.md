@@ -3,12 +3,12 @@
 [![CI](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ahmedamdahmed90-oss/vortex_atoms_ai)](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/releases)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/coverage-99.49%25-brightgreen.svg)](docs/data_room/facts.json)
 [![Rust](https://img.shields.io/badge/Rust-1.78+-orange.svg)](https://www.rust-lang.org/)
-[![Frontend](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 
 **A full-stack, locally-run AI assistant with complete data sovereignty.**
 
-Built with Rust for performance, React for user experience, and Arabic-first RTL support.
+> **At a glance:** 5-Kernel Matrix · local-first · OpenAI-compatible API · Arabic-first RTL · learner (opt-in) · 2 GB RAM envelope
 
 ## Key Features
 

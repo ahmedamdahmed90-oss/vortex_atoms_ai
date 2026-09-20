@@ -377,7 +377,7 @@
         "source_section": "header"
       },
       "repo_sha": {
-        "value": "36a8760d0446a81fa27875e43ae83054991ef86f",
+        "value": "c80ebf63b2bf150affd3f86a05d913553ceec86c",
         "command": "git rev-parse HEAD",
         "source_file": "docs/REPO_STATUS.md",
         "source_line_or_table": "commit hash",
