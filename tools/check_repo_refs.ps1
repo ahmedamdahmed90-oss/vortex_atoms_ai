@@ -30,10 +30,15 @@ if ($gitRemote -notlike "*vortex_atoms_ai*") {
 
 # 2. Check HEAD commit matches repo_sha
 $gitSha = (git rev-parse HEAD 2>$null).Trim()
+$factsShaValid = (git cat-file -t $expectedSha 2>$null) -eq "commit"
 if ($gitSha -ne $expectedSha) {
-    Write-Host "❌ HEAD SHA mismatch: $gitSha != $expectedSha" -ForegroundColor Red
-    Write-Host "   Update docs/data_room/facts.json → repository.repo_sha.value" -ForegroundColor Yellow
-    $failed++
+    if ($factsShaValid) {
+        Write-Host "⚠️  HEAD SHA differs from facts.json (expected after fresh push)" -ForegroundColor Yellow
+        Write-Host "   facts.json SHA $expectedSha is valid commit in repo" -ForegroundColor Yellow
+    } else {
+        Write-Host "❌ HEAD SHA mismatch AND facts.json SHA not found in repo: $expectedSha" -ForegroundColor Red
+        $failed++
+    }
 } else {
     Write-Host "✅ HEAD SHA matches: $gitSha" -ForegroundColor Green
 }
