@@ -203,7 +203,13 @@ fn truncate(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len])
+        // Snap back to a UTF-8 char boundary (same pattern as
+        // `clamp_string` in dashboard.rs) so Arabic/emoji never panics.
+        let mut boundary = max_len;
+        while !s.is_char_boundary(boundary) {
+            boundary = boundary.saturating_sub(1);
+        }
+        format!("{}...", &s[..boundary])
     }
 }
 

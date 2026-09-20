@@ -126,17 +126,37 @@ impl KnowledgeImporter {
             return vec![text.to_string()];
         }
 
+        // Step is saturating so `chunk_overlap >= chunk_size` (or a zero
+        // chunk_size) cannot underflow `usize` or stall the loop.
+        let step = self.chunk_size.saturating_sub(self.chunk_overlap).max(1);
+
         let mut chunks = Vec::new();
         let mut start = 0;
 
         while start < text.len() {
-            let end = (start + self.chunk_size).min(text.len());
-            let chunk = text[start..end].to_string();
-            chunks.push(chunk);
+            // Snap `end` back to a UTF-8 char boundary so multibyte text
+            // (Arabic, CJK, emoji) never panics on byte slicing.
+            let mut end = (start + self.chunk_size).min(text.len());
+            while end > start && !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            if end == start {
+                // Degenerate window narrower than one char: extend forward
+                // to the next boundary instead of emitting an empty chunk.
+                end = start + 1;
+                while end < text.len() && !text.is_char_boundary(end) {
+                    end += 1;
+                }
+            }
+            chunks.push(text[start..end].to_string());
 
-            start += self.chunk_size - self.chunk_overlap;
-            if start >= text.len() {
+            if end == text.len() {
                 break;
+            }
+            // Advance, then snap `start` forward to a boundary as well.
+            start = start.saturating_add(step);
+            while start < text.len() && !text.is_char_boundary(start) {
+                start += 1;
             }
         }
 
@@ -162,4 +182,73 @@ pub fn build_rag_context(store: &VectorStore, query: &str, max_chunks: usize) ->
     }
 
     Ok(context)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn importer() -> KnowledgeImporter {
+        KnowledgeImporter::new(32, 8)
+    }
+
+    fn assert_lossless(text: &str) {
+        let chunks = importer().chunk_text(text);
+        assert!(!chunks.is_empty());
+        // Every chunk must be valid UTF-8 (guaranteed by String) and the
+        // concatenation of chunk contents must cover the whole input.
+        let joined_len: usize = chunks.iter().map(|c| c.len()).sum();
+        assert!(
+            joined_len >= text.len(),
+            "chunking lost bytes: {joined_len} < {}",
+            text.len()
+        );
+    }
+
+    #[test]
+    fn chunk_arabic_no_panic() {
+        let text =
+            "الذكاء الاصطناعي المحلي يعمل دون اتصال بالإنترنت ويحافظ على خصوصية البيانات بشكل كامل"
+                .repeat(4);
+        assert_lossless(&text);
+    }
+
+    #[test]
+    fn chunk_mixed_arabic_english_no_panic() {
+        let text = "Vortex Atoms AI نموذج محلي first يعمل offline مع دعم كامل للعربية ".repeat(6);
+        assert_lossless(&text);
+    }
+
+    #[test]
+    fn chunk_cjk_emoji_no_panic() {
+        let text = "日本語テスト🎉混合文字列中文测试🚀 ".repeat(8);
+        assert_lossless(&text);
+    }
+
+    #[test]
+    fn chunk_combining_and_long_unicode_no_panic() {
+        let text = "é".repeat(200) + &"مرحبا ".repeat(50);
+        assert_lossless(&text);
+    }
+
+    #[test]
+    fn chunk_empty_and_short() {
+        assert_eq!(importer().chunk_text(""), vec![String::new()]);
+        assert_eq!(importer().chunk_text("hi"), vec!["hi".to_string()]);
+    }
+
+    #[test]
+    fn chunk_degenerate_configs_terminate() {
+        // overlap >= size and zero size must not hang or underflow.
+        let text = "السلام عليكم ورحمة الله وبركاته ".repeat(10);
+        for cfg in [
+            KnowledgeImporter::new(16, 16),
+            KnowledgeImporter::new(16, 64),
+            KnowledgeImporter::new(0, 0),
+            KnowledgeImporter::new(1, 0),
+        ] {
+            let chunks = cfg.chunk_text(&text);
+            assert!(!chunks.is_empty());
+        }
+    }
 }
