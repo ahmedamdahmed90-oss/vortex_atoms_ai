@@ -9,6 +9,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v0.2.0 (2026-09-20) — Autonomous Staged Engineering Protocol
+
+17-stage autonomous engineering execution applied to the repository.
+All work is additive — no public API removed, no kernel count, route,
+or feature changed.
+
+#### Correctness & Unicode
+- `chunk_text` and `truncate` fixed to use char boundaries instead of
+  byte slicing (eliminated UTF-8 panics)
+- 6 new Unicode tests added
+
+#### Import Hardening
+- `ImportReport` struct + `import_directory_report` for partial-failure
+  surfacing
+- Symlink, file-size, and extension guards in `import_directory`
+- No silent knowledge loss — every per-file failure is reported
+
+#### Embedding & Retrieval
+- `EmbeddingModel` renamed to `FastHashEmbedder` (honest naming)
+- `VectorIndex` trait added as ANN seam over linear scan
+- O(N·D) scaling measured and documented (460/2314/11526 µs at N=200/1000/5000)
+- Retrieval benchmark added
+
+#### RAG Trust Boundary
+- `ContextBuilder` with UNTRUSTED delimiters and char-budget enforcement
+- `build_rag_context` compat shim updated
+- 5 new RAG trust-boundary tests
+
+#### Atom Abstraction & Lifecycle
+- New `src/atom.rs`: `AtomKind`, `AtomState`, `AtomDescriptor`,
+  `ResourceBudget`, `AtomMetrics`
+- Orchestrator wired with metrics observers and centralized 256MiB budget
+- 8 new lifecycle tests
+
+#### Inference & Concurrency
+- Speculative decoding gated strictly on `sampler.is_greedy()` (argmax-exact only)
+- `clear_history()` on generate/tool_call/batch endpoints (fixes cross-client
+  history leak)
+- 3 new sampler correctness tests
+
+#### Security, API & 5-Kernel
+- Security audit clean — no critical vulnerabilities
+- Kernel contracts documented + `kernel_liveness()` / `all_kernels_alive()`
+  probes
+- API inventory verified, metrics real, doc notes added
+
+#### Performance & Benchmarks
+- 3 ignored micro-benchmarks + `docs/BENCHMARKS.md`
+- No blind optimizations — all performance claims backed by measurements
+- Fixed flaky `eviction_records_metrics` test
+
+#### Docs Sync
+- `docs/AGENT_INITIAL_ARCHITECTURE.md`, `ENGINEERING_BASELINE.md`
+- `docs/ATOM_ARCHITECTURE.md`, `ENGINEERING_REVIEW.md`, `BENCHMARKS.md`
+- `docs/API_REFERENCE.md` statelessness notes added
+- `docs/FINAL_ENGINEERING_REPORT.md` comprehensive before/after metrics
+
+#### CI Fixes
+- Fixed linker OOM on `learner,tray` tests: `CARGO_BUILD_JOBS=1` +
+  `RUSTFLAGS="-C split-debuginfo=unpacked"`
+- Updated `Cargo.lock`: h2 0.4.15→0.4.19, hyper 1.10.1→1.11.1
+  (fixes RUSTSEC-2026-0194)
+- Added disk cleanup step to prevent runner exhaustion
+- All 4 CI jobs green: Backend (Rust), Frontend, Data Room, Security Audit
+
 ### CODE-HYGIENE-02 (2026-09-18)
 - Closed last 3 deferred oxlint warnings (reached 0 warnings, 0 errors)
 - **latest-ref pattern**: `useAccessibility.ts` — `useCallback` deps `[]`, all values read via refs
