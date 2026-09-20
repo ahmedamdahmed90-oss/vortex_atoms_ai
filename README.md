@@ -1,10 +1,59 @@
-# vortex_atoms_ai
+# Vortex Atoms AI
 
 [![CI](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ahmedamdahmed90-oss/vortex_atoms_ai)](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/releases)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.78+-orange.svg)](https://www.rust-lang.org/)
 [![Frontend](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
+
+**A full-stack, locally-run AI assistant with complete data sovereignty.**
+
+Built with Rust for performance, React for user experience, and Arabic-first RTL support.
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Local-First** | All data stays on your machine. No cloud dependency. |
+| **Fast Inference** | Rust-native GGUF pipeline with memory-mapped models |
+| **Arabic RTL** | Full right-to-left interface support |
+| **5-Kernel Matrix** | Modular architecture: UI, Router, Code, Media, Watchdog |
+| **Security Hardened** | 11 threats addressed, SBOM, provenance, SHA-256 |
+| **Dashboard** | Real-time monitoring and configuration |
+
+## Quick Start
+
+### Option 1: Download Release (Recommended)
+
+1. Download from [GitHub Releases](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/releases/tag/v0.2.0)
+2. Extract `vortex-atoms-ai-windows-amd64.zip`
+3. Run `vortex_api.exe`
+
+### Option 2: Build from Source
+
+```bash
+git clone https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai.git
+cd vortex_atoms_ai
+cargo build --release --bin vortex_api
+./target/release/vortex_api.exe
+```
+
+### Option 3: Docker
+
+```bash
+docker build -t vortex-atoms-ai .
+docker run -p 8080:8080 -e VORTEX_API_TOKEN=your-token vortex-atoms-ai
+```
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [API Reference](docs/API_REFERENCE.md) | Complete API documentation |
+| [Architecture](docs/ARCHITECTURE.md) | System design and 5-Kernel Matrix |
+| [Security](SECURITY.md) | Security model and best practices |
+| [Developer Guide](docs/DEVELOPER_GUIDE.md) | Build, test, and contribute |
+| [User Guide](docs/USER_GUIDE.md) | End-user documentation |
 
 `vortex_atoms_ai` is a full-stack, locally-run AI assistant: a Rust workspace with a low-latency
 machine-learning kernel, an asynchronous 5-Kernel Matrix runtime, a native CUDA-free GGUF inference
