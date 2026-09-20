@@ -11,12 +11,12 @@ $passed = $true
 $readme = Get-Content "README.md" -Raw
 
 # Check for certified counts
-if ($readme -notmatch "155 passed, 0 failed") {
-    Write-Host "RED: README missing '155 passed, 0 failed'" -ForegroundColor Red
+if ($readme -notmatch "156 passed, 0 failed") {
+    Write-Host "RED: README missing '156 passed, 0 failed'" -ForegroundColor Red
     $passed = $false
 }
-if ($readme -notmatch "354/354") {
-    Write-Host "RED: README missing '354/354'" -ForegroundColor Red
+if ($readme -notmatch "356/356") {
+    Write-Host "RED: README missing '356/356'" -ForegroundColor Red
     $passed = $false
 }
 if ($readme -notmatch "54/54") {
@@ -30,8 +30,8 @@ if ($readme -notmatch "99.49%") {
 
 # Check index.html numbers match README
 $index = Get-Content "frontend\index.html" -Raw
-if ($index -notmatch "155") {
-    Write-Host "RED: index.html missing '155'" -ForegroundColor Red
+if ($index -notmatch "156") {
+    Write-Host "RED: index.html missing '156'" -ForegroundColor Red
     $passed = $false
 }
 
