@@ -45,6 +45,31 @@ docker build -t vortex-atoms-ai .
 docker run -p 8080:8080 -e VORTEX_API_TOKEN=your-token vortex-atoms-ai
 ```
 
+## Releases & Verifying Downloads
+
+Each release includes small verification artifacts attached to the GitHub release page:
+
+| Artifact | Purpose |
+|----------|---------|
+| `SHA256_MANIFEST.txt` | Checksums for all release artifacts |
+| `SBOM.json` | Software Bill of Materials (CycloneDX 1.4) |
+| `provenance.json` | Build provenance with SHA-256 digest |
+| `SEC01_LANDING.md` | Security landing report |
+
+**Binary downloads** (executables, installers) ship via the website with checksum verification. They are NOT attached to GitHub releases to keep the repo lightweight.
+
+### Verifying a download
+
+```powershell
+# 1. Download the SHA-256 manifest from the release page
+# 2. Verify checksum
+Get-FileHash -Algorithm SHA256 .\vortex_api.exe
+# Compare with the value in SHA256_MANIFEST.txt
+
+# 3. Or use the verification script
+./tools/verify_release.ps1 -Version "0.3.0"
+```
+
 ## Documentation
 
 | Document | Description |
