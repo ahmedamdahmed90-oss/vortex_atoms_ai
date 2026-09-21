@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.1] - 2026-09-21
 
+### IVF approximate retrieval (2026-09-21)
+- Hand-rolled spherical k-means IVF (`IvfIndex`) implementing
+  `VectorIndex`: nprobe-list probing + exact cosine re-rank, zero new
+  dependencies. Untrained index degrades to exact linear (never wrong);
+  any mutation invalidates training (obviously-correct invariant).
+- Measured (debug, i5-2430M, D=64, clustered data): recall@10 = 1.000 at
+  N=1k/5k/12k; 6.6–7.7× faster than linear (crossover below N=1000).
+  Regression floor recall@10 ≥ 0.95 in-tree (7 new tests + 2 benches).
+- Honest limit documented: recall measured on clustered data; hash
+  embeddings are near-orthogonal (ANN built for the neural future).
+  Default backend stays linear; opt in via `VectorStore::trained_ivf`.
+- Found by measuring: the recall harness RNG divided by `u64::MAX`
+  instead of `(u64::MAX >> 11)`, collapsing all vectors parallel
+  (every cosine read 1.0). Fixed + documented in-code; production
+  `FastHashEmbedder`/drafter RNGs audited clean (correct divisors).
+
 ### Per-session inference isolation (2026-09-21)
 - New `inference_session` module: sessions own history + sampler; weights
   stay shared-serial (Qwen2 weights are not `Clone`, candle KV lives in

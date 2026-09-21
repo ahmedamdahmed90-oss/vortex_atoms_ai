@@ -36,6 +36,31 @@ run (±2× observed between runs) — treat as order-of-magnitude, not spec.
   No ANN dependency added — unjustified at current scale.
 - Atom registry ops are sub-ms at 1000 atoms; lifecycle overhead is noise.
 
+## IVF approximate index (measured 2026-09-21, same machine, debug)
+
+Hand-rolled spherical k-means IVF behind `VectorIndex` (zero new deps):
+nlist=64, nprobe=8, D=64, k=10, clustered synthetic data (16 blobs).
+Recall@10 vs exact linear ground truth. Rerun:
+`cargo test --features learner --lib bench_ivf -- --ignored --nocapture`
+
+| N | train (one-time) | recall@10 | IVF µs/q | linear µs/q | speedup |
+|---|------------------|-----------|----------|-------------|---------|
+| 1000 | 3.5s | 1.000 | 353 | 2333 | 6.6× |
+| 5000 | 16.9s | 1.000 | 1750 | 12442 | 7.1× |
+| 12000 | 40.6s | 1.000 | 4330 | 33331 | 7.7× |
+
+Regression floor in-tree: recall@10 ≥ 0.95 (`ivf_recall_on_clustered_data`).
+Crossover is below N=1000 — IVF wins everywhere measured. Default backend
+stays linear (zero behavior risk); opt in via `VectorStore::trained_ivf`
+when N or latency budget demands it.
+
+Honest limits: recall measured on CLUSTERED data, where partitions work.
+`FastHashEmbedder` vectors are near-orthogonal sparse — every centroid is
+~equidistant there, so IVF recall on hash embeddings will be poor. ANN is
+built for the neural-embedding future (`neural-embed`/OrtEmbedder), where
+vectors actually cluster. Train cost is debug-build time; release is far
+faster (train is offline, queries are what matter).
+
 ## Stage 13 profile notes (no blind optimization)
 
 - No inference hot-path changes made: no model was available on this
