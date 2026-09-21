@@ -595,14 +595,17 @@ fn ws_origin_allowed(req: &Request, sec: &SecurityState) -> bool {
             return true;
         }
     }
-    if let Some(host) = req.headers().get("host") {
-        if let Ok(host_str) = host.to_str() {
-            let origin_host = origin_str.split("://").nth(1).unwrap_or(origin_str);
-            let host_host = host_str.split(':').next().unwrap_or(host_str);
-            return origin_host.eq_ignore_ascii_case(host_host);
-        }
-    }
-    false
+    // Same-origin fallback mirrors origin_allowed (CORS twin) exactly:
+    // compare full host:port on both sides. The old code stripped the port
+    // from Host but not from Origin, rejecting every same-origin WS
+    // handshake on a non-default port (i.e. all of them in practice).
+    let Some(oh) = origin_host(origin) else {
+        return false;
+    };
+    let Some(host) = req.headers().get("host").and_then(|h| h.to_str().ok()) else {
+        return false;
+    };
+    oh == host.to_lowercase()
 }
 
 /// Axum middleware: request IDs, rate limiting, bearer auth + role gating.
@@ -1435,6 +1438,58 @@ mod tests {
         assert!(!origin_allowed(&nul, Some(&host), &allow));
         let allow2 = vec!["https://evil.example".to_string()];
         assert!(origin_allowed(&evil, Some(&host), &allow2));
+    }
+
+    fn ws_request(origin: Option<&str>, host: Option<&str>) -> Request {
+        let mut builder = Request::builder().uri("/ws");
+        if let Some(o) = origin {
+            builder = builder.header("origin", o);
+        }
+        if let Some(h) = host {
+            builder = builder.header("host", h);
+        }
+        builder.body(axum::body::Body::empty()).unwrap()
+    }
+
+    fn ws_test_state() -> SecurityState {
+        SecurityState::new(SecurityConfig::default(), None, None)
+    }
+
+    #[test]
+    fn ws_same_origin_with_port_is_allowed() {
+        // Regression: the old comparison stripped the port from Host but
+        // not from Origin, 403ing every same-origin WS handshake on :8080.
+        let state = ws_test_state();
+        let req = ws_request(Some("http://127.0.0.1:8080"), Some("127.0.0.1:8080"));
+        assert!(ws_origin_allowed(&req, &state));
+    }
+
+    #[test]
+    fn ws_cross_origin_and_cross_port_stay_denied() {
+        let state = ws_test_state();
+        // Different host entirely.
+        let evil = ws_request(Some("https://evil.example"), Some("127.0.0.1:8080"));
+        assert!(!ws_origin_allowed(&evil, &state));
+        // Same host, different port: still cross-origin, still denied.
+        let xport = ws_request(Some("http://127.0.0.1:8080"), Some("127.0.0.1:9090"));
+        assert!(!ws_origin_allowed(&xport, &state));
+        // Missing origin header: denied (transport-hijack guard).
+        let no_origin = ws_request(None, Some("127.0.0.1:8080"));
+        assert!(!ws_origin_allowed(&no_origin, &state));
+    }
+
+    #[test]
+    fn ws_explicit_allowlist_still_wins() {
+        let state = SecurityState::new(
+            SecurityConfig {
+                allowed_origins: vec!["https://app.example".to_string()],
+                ..Default::default()
+            },
+            None,
+            None,
+        );
+        let listed = ws_request(Some("https://app.example"), Some("127.0.0.1:8080"));
+        assert!(ws_origin_allowed(&listed, &state));
     }
 
     #[test]

@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Residual sharing (harmless, documented): n-gram tables (exact
   verifier), hash-validated prefix-KV, global cancel flag.
 
+### WS origin check port fix (2026-09-21, found live)
+- `ws_origin_allowed` stripped the port from Host but not from Origin,
+  403ing every same-origin WS handshake on a non-default port — WS
+  streaming was broken for all default-config users (the 403 body
+  misleadingly said "read-only mode"). Now mirrors the correct CORS
+  twin (`origin_host`, full host:port compare); cross-port stays denied.
+  3 new tests. Found while live-verifying per-session streaming.
+
 ### Post-v0.2.0 fixes (2026-09-21, live-verified on Sandy Bridge i5-2430M)
 - `tokens_per_second` in `/v1/generate` + Kernel_03 IKC events now reports
   measured completion-tokens/wall-time instead of hardcoded `0.0`
