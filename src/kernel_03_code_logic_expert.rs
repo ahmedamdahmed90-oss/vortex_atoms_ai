@@ -151,6 +151,7 @@ pub async fn run(
                             if let Some(temp) = temperature {
                                 eng.set_temperature(temp);
                             }
+                            let gen_start = std::time::Instant::now();
                             match eng.generate(&prompt, max_tokens) {
                                 Ok(output) => {
                                     let mut state = tokio::runtime::Handle::current()
@@ -161,7 +162,10 @@ pub async fn run(
                                         kernel: KernelId::Kernel03CodeLogicExpert,
                                         request_id: rid.clone(),
                                         total_tokens: output.len(),
-                                        tokens_per_second: 0.0,
+                                        tokens_per_second: crate::llm_api::throughput_tps(
+                                            output.len(),
+                                            gen_start.elapsed().as_secs_f64(),
+                                        ),
                                         full_text: output,
                                     });
                                     Ok(())

@@ -742,3 +742,25 @@ fn test_update_performance_rejects_out_of_range_without_touching_disk() {
         "disk must be untouched on rejection: {raw}"
     );
 }
+
+// ============================================================
+// THROUGHPUT_TPS TESTS (observability: real tok/s, never inf)
+// ============================================================
+
+#[test]
+fn test_throughput_tps_divides_units_by_elapsed() {
+    use vortex_atoms_ai::llm_api::throughput_tps;
+    assert!((throughput_tps(100, 2.0) - 50.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn test_throughput_tps_zero_elapsed_yields_zero_not_inf() {
+    use vortex_atoms_ai::llm_api::throughput_tps;
+    assert_eq!(throughput_tps(100, 0.0), 0.0);
+}
+
+#[test]
+fn test_throughput_tps_zero_units_yields_zero() {
+    use vortex_atoms_ai::llm_api::throughput_tps;
+    assert_eq!(throughput_tps(0, 2.5), 0.0);
+}

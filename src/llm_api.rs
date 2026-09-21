@@ -93,6 +93,17 @@ pub fn clamp_max_tokens(requested: Option<usize>) -> usize {
         .min(MAX_API_MAX_TOKENS)
 }
 
+/// Throughput convention shared with `generate_streaming` (llm_inference.rs):
+/// completion units / wall time (includes prefill). Zero on zero elapsed
+/// instead of infinity — a stalled clock must not fabricate throughput.
+pub fn throughput_tps(units: usize, elapsed_secs: f64) -> f64 {
+    if elapsed_secs > 0.0 {
+        units as f64 / elapsed_secs
+    } else {
+        0.0
+    }
+}
+
 /// Honor a user-facing model routing hint (`eco`/`q4_0`).
 ///
 /// Fail-closed: without `security.allow_model_routing` the hint is rejected;
@@ -432,15 +443,20 @@ async fn handle_generate(
     };
     let max_tokens = clamp_max_tokens(req.max_tokens);
 
+    let gen_start = std::time::Instant::now();
     match tokio::task::block_in_place(|| engine.generate(&prompt, Some(max_tokens))) {
         Ok(text) => {
             let tokens = engine.tokenize(&text).map(|t| t.len()).unwrap_or(0);
+            // Real throughput instead of the old hardcoded 0.0 (measured:
+            // ~0.008 tok/s for Qwen2.5-0.5B on Sandy Bridge i5-2430M —
+            // prefill-dominated, see docs/BENCHMARKS.md).
+            let tokens_per_second = throughput_tps(tokens, gen_start.elapsed().as_secs_f64());
             (
                 StatusCode::OK,
                 Json(GenerateResponse {
                     text,
                     total_tokens: tokens,
-                    tokens_per_second: 0.0,
+                    tokens_per_second,
                 }),
             )
                 .into_response()
