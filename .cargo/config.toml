@@ -1,5 +1,7 @@
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-cpu=native"]
-
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "target-cpu=native"]
+# NOTE: do NOT pin `-C target-cpu=native` here.
+# Proven 2026-09-21: it crashes rustc with SIGILL when compiling
+# `gemm-common` on virtualized CI runners (cold-cache rebuilds), and it
+# ties published release binaries to the build machine's CPU (they can
+# SIGILL on older consumer CPUs). Runtime SIMD dispatch is already handled
+# by `perf_topology` + pulp/gemm. For a local max-perf build, export:
+#   RUSTFLAGS="-C target-cpu=native"

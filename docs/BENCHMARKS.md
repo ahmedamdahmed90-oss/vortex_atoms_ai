@@ -4,6 +4,12 @@
 > Measured 2026-09-20 on Intel i5-2430M (2 cores, no AVX2), Windows 10,
 > **debug build** (release will be faster), machine under normal load.
 > Rerun: `cargo test --features learner --lib bench_ -- --ignored --nocapture`
+>
+> Build flags (2026-09-21): the repo no longer pins `-C target-cpu=native`
+> (see `.cargo/config.toml`). It crashed rustc with SIGILL on virtualized CI
+> runners and tied release binaries to the build CPU. Runtime SIMD dispatch
+> via `perf_topology` + pulp/gemm is unaffected. For a local max-perf build:
+> `RUSTFLAGS="-C target-cpu=native"`.
 
 ## Micro-benchmarks (measured)
 
