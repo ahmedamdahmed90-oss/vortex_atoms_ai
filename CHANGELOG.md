@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Post-v0.2.0 fixes (2026-09-21, live-verified on Sandy Bridge i5-2430M)
+- `tokens_per_second` in `/v1/generate` + Kernel_03 IKC events now reports
+  measured completion-tokens/wall-time instead of hardcoded `0.0`
+  (new `llm_api::throughput_tps` helper + 3 unit tests; convention mirrors
+  `generate_streaming`). Measured: ~0.008 tok/s for Qwen2.5-0.5B —
+  prefill-dominated, see `docs/BENCHMARKS.md`.
+- Default server port `3000` → `8080`, matching README, Dockerfile,
+  installer shortcuts, frontend defaults, and `--help` text (the code
+  default was the sole outlier). Locked by unit test.
+- Measured inference numbers added to `docs/BENCHMARKS.md`, closing the
+  Stage 13 honest-scope gap (release 2-token completion ≈ 265s on the
+  test machine; debug build unbounded-slow, appears hung but is not).
+- Release workflow: frontend is now built before binaries (rust-embed
+  requires `frontend/dist/` at compile time); `cargo auditable` replaced
+  with `cargo build`; changelog generation fixed for first tag.
+- Build: repo no longer pins `-C target-cpu=native` (crashed rustc with
+  SIGILL on virtualized CI runners; tied binaries to the build CPU).
+
 ### v0.2.0 (2026-09-20) — Autonomous Staged Engineering Protocol
 
 17-stage autonomous engineering execution applied to the repository.
