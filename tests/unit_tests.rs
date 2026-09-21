@@ -764,3 +764,17 @@ fn test_throughput_tps_zero_units_yields_zero() {
     use vortex_atoms_ai::llm_api::throughput_tps;
     assert_eq!(throughput_tps(0, 2.5), 0.0);
 }
+
+// ============================================================
+// SERVER DEFAULT TESTS (code/docs contract: port 8080)
+// ============================================================
+
+#[test]
+fn test_server_default_port_matches_documented_8080() {
+    use vortex_atoms_ai::vortex_config::ServerConfig;
+    assert_eq!(
+        ServerConfig::default().port,
+        8080,
+        "code default must match README/Docker/installer/frontend (all 8080)"
+    );
+}

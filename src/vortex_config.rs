@@ -129,7 +129,11 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             host: "0.0.0.0".into(),
-            port: 3000,
+            // Port 8080: matches README, Dockerfile/docker-compose,
+            // installer shortcuts, frontend defaults, and --help text.
+            // (Changed from 3000 in v0.2.0 — the code default was the
+            // sole outlier; everything else already assumed 8080.)
+            port: 8080,
         }
     }
 }
