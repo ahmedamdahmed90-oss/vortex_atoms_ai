@@ -38,6 +38,10 @@ cargo build --release --bin vortex_api
 ./target/release/vortex_api.exe
 ```
 
+> One-command local run (backend on loopback :8080, optional Vite dev):
+> `powershell -ExecutionPolicy Bypass -File tools\run_local.ps1 -Frontend`
+> (`tools\stop_local.ps1` stops it; logs go to `logs/`.)
+
 ### Option 3: Docker
 
 ```bash
