@@ -48,6 +48,27 @@ run (±2× observed between runs) — treat as order-of-magnitude, not spec.
   loaded model + tokens/sec harness to prove it.
 - ` batch_generate` already clears history per item (verified Stage 9).
 
+## Inference (measured 2026-09-21, closes the gap above)
+
+Machine: Intel i5-2430M (Sandy Bridge, 2C/4T, no AVX2), Windows 10.
+Model: Qwen2.5-0.5B-Instruct Q4_K_M (mmap). Binary: published v0.2.0
+release (portable build, `target-cpu=native` removed — see note at top).
+
+| Request | Result |
+|---------|--------|
+| `POST /v1/generate` "Hello", max_tokens=2 | 200 in **264.7s**, `text:"Hello!"` |
+| `POST /v1/generate` "Hello again", max_tokens=2 | 200 in **265.7s** (no prefix-KV win — different prompt) |
+| `POST /v1/embeddings` "Hello world" | 200 in **188ms** (hash path, not neural) |
+| Same generate on **debug** build | did not finish within 120s / 600s timeouts |
+
+Conclusion: the loop is correct (bounded, EOS + max enforced) — cost is
+almost entirely **prefill of the full templated prompt** (system + RAG +
+history, ~hundreds of tokens) at ~0.25s/forward-pass in release on this
+CPU. Debug is 10×+ slower (appears hung; it is not). Practical guidance:
+run the release binary, keep prompts short, use small max_tokens, or use
+the `eco` (SmolLM2-135M) tier on weak hardware. `tokens_per_second: 0.0`
+in responses is a hardcoded placeholder (pre-existing gap).
+
 ## NOT measured here (honest scope limits)
 
 - **Inference**: TTFT, tokens/sec, total latency — require a downloaded
