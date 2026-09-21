@@ -22,6 +22,7 @@ pub mod five_kernel_matrix;
 pub mod global_humanities_module;
 pub mod ikc;
 pub mod inference;
+pub mod inference_session;
 pub mod kernel;
 pub mod kernel_01_ui_interaction;
 pub mod kernel_02_router_vector_db;

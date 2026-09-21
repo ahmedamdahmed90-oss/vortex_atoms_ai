@@ -202,6 +202,14 @@ impl VortexSampler {
         self.greedy = matches!(sampling, Sampling::ArgMax);
         self.inner = LogitsProcessor::from_sampling(self.seed, sampling);
     }
+
+    /// Fork an independent sampler for an inference session (`inference_session`).
+    /// Same config, but the RNG stream is salted so concurrent sessions do
+    /// not draw identical random sequences. `LogitsProcessor` is not
+    /// `Clone`; rebuilding from `(seed, config)` is exact and cheap.
+    pub fn fork(&self, salt: u64) -> Self {
+        Self::new(self.seed.wrapping_add(salt), &self.config)
+    }
 }
 
 #[cfg(test)]
@@ -250,5 +258,47 @@ mod tests {
         let mut short = vec![2.0f32; 10];
         apply_repeat_penalty_window(&mut short, &[3], 1.5, 64);
         assert_ne!(short[3], 2.0);
+    }
+
+    fn sample_token(sampler: &mut VortexSampler, bias: f32) -> u32 {
+        // Skewed 8-token distribution at high temperature: draws vary.
+        let logits = Tensor::new(
+            &[bias, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            &candle_core::Device::Cpu,
+        )
+        .unwrap();
+        sampler.sample(&logits, &[]).unwrap()
+    }
+
+    #[test]
+    fn fork_preserves_sampling_config() {
+        let parent = VortexSampler::new(42, &config_with(Some(0.7), None, None));
+        assert!(!parent.is_greedy());
+        assert!(!parent.fork(1).is_greedy());
+        let greedy_parent = VortexSampler::new(42, &config_with(None, None, None));
+        assert!(greedy_parent.fork(99).is_greedy());
+    }
+
+    #[test]
+    fn fork_same_salt_is_deterministic() {
+        let parent = VortexSampler::new(7, &config_with(Some(2.0), None, None));
+        let mut a = parent.fork(5);
+        let mut b = parent.fork(5);
+        let draws_a: Vec<u32> = (0..16).map(|_| sample_token(&mut a, 1.0)).collect();
+        let draws_b: Vec<u32> = (0..16).map(|_| sample_token(&mut b, 1.0)).collect();
+        assert_eq!(draws_a, draws_b);
+    }
+
+    #[test]
+    fn fork_salt_diverges_rng_streams() {
+        // 16 draws on a flat-ish distribution: identical vectors across
+        // different salts would require 16 consecutive RNG collisions
+        // (P ~ vocab^-16) — treats RNG divergence as observable fact.
+        let parent = VortexSampler::new(7, &config_with(Some(2.0), None, None));
+        let mut a = parent.fork(1);
+        let mut b = parent.fork(2);
+        let draws_a: Vec<u32> = (0..16).map(|_| sample_token(&mut a, 0.5)).collect();
+        let draws_b: Vec<u32> = (0..16).map(|_| sample_token(&mut b, 0.5)).collect();
+        assert_ne!(draws_a, draws_b);
     }
 }

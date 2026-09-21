@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Per-session inference isolation (2026-09-21)
+- New `inference_session` module: sessions own history + sampler; weights
+  stay shared-serial (Qwen2 weights are not `Clone`, candle KV lives in
+  the model — full engine clones are impossible without vendor surgery).
+- `LlmInference::fork_session` + `generate_with_session` /
+  `generate_streaming_with_session`: swap history+sampler in/out around
+  the unchanged hot loop (restored even on error).
+- `/ws`: one session per connection (own multi-turn memory + sticky
+  temperature); `/generate` + `/chat`: ephemeral session per request
+  (temperature no longer leaks into later requests; old `clear_history`
+  band-aid superseded). Kernels/IKC keep the global engine (unchanged).
+- `VortexSampler::fork(salt)`: fresh RNG per session (7 new tests:
+  4 session isolation + 3 fork determinism/divergence/config).
+- Residual sharing (harmless, documented): n-gram tables (exact
+  verifier), hash-validated prefix-KV, global cancel flag.
+
 ### Post-v0.2.0 fixes (2026-09-21, live-verified on Sandy Bridge i5-2430M)
 - `tokens_per_second` in `/v1/generate` + Kernel_03 IKC events now reports
   measured completion-tokens/wall-time instead of hardcoded `0.0`

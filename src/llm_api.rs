@@ -45,15 +45,18 @@ pub const MAX_API_MAX_TOKENS: usize = 512;
 ///   blocking generation, so generation is effectively **serial** (1 at a
 ///   time) even though 2 permits may be admitted. The two limits mean
 ///   different things: admission-burst vs execution-exclusion.
-/// - **Isolation**: the engine's conversation history is rebuilt per request
-///   (`clear_history` + caller-supplied messages) while holding the exclusive
-///   guard, so no request can observe another's history. Stateless endpoints
-///   (generate/tool-call/batch) clear unconditionally.
+/// - **Isolation**: inference runs on sessions (`inference_session`), never
+///   on bare engine state. HTTP endpoints fork an ephemeral session per
+///   request (fresh history + private sampler: temperature sticks to the
+///   request only); each `/ws` connection owns one session for its lifetime
+///   (own history across its messages, own temperature). Weights stay shared
+///   (immutable tensors) and KV is rebuilt per request under the serial lock.
 /// - **Observability**: `/v1/health` uses `try_read` and never queues behind
 ///   a running generation.
-/// - **Known limitation**: `/ws` streaming and the 5-kernel IKC path share
-///   the same engine without per-session partitioning; concurrent streaming
-///   sessions interleave history. Per-session engines are future work.
+/// - **Residual sharing** (documented, harmless): n-gram drafter tables
+///   (the argmax verifier is exact), the hash-validated prefix-KV cache,
+///   the global cancel flag, and the 5-kernel IKC path which keeps the
+///   global engine (system-level workers, not user sessions).
 pub struct ApiState {
     pub engine: Arc<RwLock<LlmInference>>,
     pub tool_executor: Arc<dyn ToolExecutor>,
@@ -429,13 +432,16 @@ async fn handle_generate(
     ) {
         return bad_request(msg).into_response();
     }
+    // Per-session isolation (inference_session): this request runs on an
+    // ephemeral session forked from engine config — fresh history, private
+    // sampler. Temperature applies to the session only (previously it
+    // mutated the shared engine sampler and leaked into later requests);
+    // the engine-resident history/sampler are never read on this path, so
+    // the old unconditional clear_history is redundant here.
+    let mut session = engine.fork_session();
     if let Some(t) = temperature {
-        engine.set_temperature(t);
+        session.set_temperature(t);
     }
-    // Stage 9 session isolation: the engine is shared across all clients, so
-    // its conversation history must not leak one request into another. The
-    // chat handler already resets per request; generate matches it.
-    engine.clear_history();
     let prompt = if context.is_empty() {
         req.prompt.clone()
     } else {
@@ -444,7 +450,9 @@ async fn handle_generate(
     let max_tokens = clamp_max_tokens(req.max_tokens);
 
     let gen_start = std::time::Instant::now();
-    match tokio::task::block_in_place(|| engine.generate(&prompt, Some(max_tokens))) {
+    match tokio::task::block_in_place(|| {
+        engine.generate_with_session(&prompt, Some(max_tokens), &mut session)
+    }) {
         Ok(text) => {
             let tokens = engine.tokenize(&text).map(|t| t.len()).unwrap_or(0);
             // Real throughput instead of the old hardcoded 0.0 (measured:
@@ -547,11 +555,13 @@ async fn handle_chat(
     ) {
         return bad_request(msg).into_response();
     }
+    // Ephemeral session (see handle_generate): caller messages seed the
+    // session history, temperature sticks to the session only. The old
+    // clear-then-append dance on the shared engine is superseded.
+    let mut session = engine.fork_session();
     if let Some(t) = temperature {
-        engine.set_temperature(t);
+        session.set_temperature(t);
     }
-
-    engine.clear_history();
 
     for msg in &req.messages[..last_user_idx] {
         let role = match msg.role.as_str() {
@@ -559,7 +569,10 @@ async fn handle_chat(
             "assistant" => crate::llm_prompt::MessageRole::Assistant,
             _ => crate::llm_prompt::MessageRole::System,
         };
-        engine.append_to_history(role, &msg.content);
+        session.history.push(crate::llm_prompt::ChatMessage {
+            role,
+            content: msg.content.clone(),
+        });
     }
 
     let user_msg = &req.messages[last_user_idx];
@@ -572,7 +585,9 @@ async fn handle_chat(
     let prompt_token_count = engine.tokenize(&prompt).map(|t| t.len()).unwrap_or(0);
     let max_tokens = clamp_max_tokens(req.max_tokens);
 
-    match tokio::task::block_in_place(|| engine.generate(&prompt, Some(max_tokens))) {
+    match tokio::task::block_in_place(|| {
+        engine.generate_with_session(&prompt, Some(max_tokens), &mut session)
+    }) {
         Ok(text) => {
             let completion = engine.tokenize(&text).map(|t| t.len()).unwrap_or(0);
             (

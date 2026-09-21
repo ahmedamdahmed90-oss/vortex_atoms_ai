@@ -10,6 +10,7 @@ use futures_util::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
+use crate::inference_session::InferenceSession;
 use crate::llm_api::ApiState;
 use crate::llm_stream::StreamEvent;
 use crate::security::AuthRole;
@@ -79,6 +80,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<RwLock<ApiState>>) {
     let mut pinger = tokio::time::interval(std::time::Duration::from_secs(WS_PING_INTERVAL_SECS));
     pinger.tick().await; // first tick fires immediately; skip it.
 
+    // One inference session per connection: history + sampler stay private
+    // to this socket for its lifetime (per-session isolation). Forked lazily
+    // on the first generate message so idle/ping-only sockets cost nothing.
+    let mut session: Option<InferenceSession> = None;
+
     loop {
         tokio::select! {
             _ = pinger.tick() => {
@@ -110,7 +116,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<RwLock<ApiState>>) {
                         break;
                     }
                 }
-                if !handle_ws_message(msg, &mut sender, &state).await {
+                let sess = match session.take() {
+                    Some(s) => s,
+                    None => {
+                        let outer = state.read().await;
+                        let engine = outer.engine.read().await;
+                        engine.fork_session()
+                    }
+                };
+                let (cont, sess) = handle_ws_message(msg, &mut sender, &state, sess).await;
+                session = sess;
+                if !cont {
                     break;
                 }
             }
@@ -157,11 +173,18 @@ async fn send_terminal(
     let json = serde_json::to_string(&frame).unwrap_or_default();
     sender.send(Message::Text(json.into())).await.is_ok()
 }
+
+/// One message on one socket. Takes the connection's session by value and
+/// returns it alongside the keep-open flag: the blocking generation task
+/// owns the session while it runs and hands it back through a oneshot, so
+/// at most one task ever holds it. `None` back means the task panicked
+/// (the engine lock is poisoned too) — the caller must close the socket.
 async fn handle_ws_message(
     msg: Message,
     sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
     state: &Arc<RwLock<ApiState>>,
-) -> bool {
+    mut session: InferenceSession,
+) -> (bool, Option<InferenceSession>) {
     match msg {
         Message::Text(text) => {
             let request: WsGenerateRequest = match serde_json::from_str(&text) {
@@ -172,7 +195,7 @@ async fn handle_ws_message(
                     })
                     .unwrap_or_default();
                     let _ = sender.send(Message::Text(err.into())).await;
-                    return true;
+                    return (true, Some(session));
                 }
             };
 
@@ -190,7 +213,7 @@ async fn handle_ws_message(
                     })
                     .unwrap_or_default();
                     let _ = sender.send(Message::Text(err.into())).await;
-                    return true;
+                    return (true, Some(session));
                 }
             };
 
@@ -210,7 +233,7 @@ async fn handle_ws_message(
             if let Err(e) = crate::security::check_text_len(&request.prompt, temp_cfg.2, "prompt") {
                 let err = serde_json::to_string(&WsEvent::Error { message: e }).unwrap_or_default();
                 let _ = sender.send(Message::Text(err.into())).await;
-                return true;
+                return (true, Some(session));
             }
 
             let temperature = match request.temperature {
@@ -220,7 +243,7 @@ async fn handle_ws_message(
                     })
                     .unwrap_or_default();
                     let _ = sender.send(Message::Text(err.into())).await;
-                    return true;
+                    return (true, Some(session));
                 }
                 Some(t) => Some(t.clamp(temp_cfg.0, temp_cfg.1)),
                 None => None,
@@ -229,18 +252,30 @@ async fn handle_ws_message(
             let prompt = request.prompt.clone();
             let max_tokens = crate::llm_api::clamp_max_tokens(request.max_tokens);
 
+            // The session crosses into the blocking task by value and comes
+            // back through a oneshot when generation ends.
+            let (back_tx, back_rx) = tokio::sync::oneshot::channel();
             tokio::task::spawn_blocking(move || {
                 // Held for the whole generation: bounds WS concurrency.
                 let _permit = permit;
                 let mut engine = engine_arc.blocking_write();
 
                 if let Some(temp) = temperature {
-                    engine.set_temperature(temp);
+                    // Sticky per connection: follows this socket only, never
+                    // the shared engine sampler (which previously leaked it
+                    // into unrelated requests).
+                    session.set_temperature(temp);
                 }
 
-                if let Err(e) = engine.generate_streaming(&prompt, Some(max_tokens), tx) {
+                if let Err(e) = engine.generate_streaming_with_session(
+                    &prompt,
+                    Some(max_tokens),
+                    tx,
+                    &mut session,
+                ) {
                     eprintln!("[WS] Generation error: {}", e.public_message());
                 }
+                let _ = back_tx.send(session);
             });
 
             // PERF-02 §6.1 — token coalescing window: token events are buffered
@@ -267,7 +302,8 @@ async fn handle_ws_message(
                         // Window closed with nothing new: flush what we have.
                         Err(_) => {
                             if !batch.is_empty() && !send_batch(&mut batch, sender).await {
-                                return false;
+                                // Peer gone: abandon the session with its task.
+                                return (false, None);
                             }
                             flushed = std::time::Instant::now();
                             continue;
@@ -303,26 +339,33 @@ async fn handle_ws_message(
                             && (coalesce_ms == 0 || flushed.elapsed() >= coalesce)
                             && !send_batch(&mut batch, sender).await
                         {
-                            return false;
+                            // Peer gone: abandon the session with its task.
+                            return (false, None);
                         }
                     }
                     terminal => {
                         // Terminal event: flush buffered tokens first (order
                         // preserved), then the terminal event immediately.
                         if !batch.is_empty() && !send_batch(&mut batch, sender).await {
-                            return false;
+                            return (false, None);
                         }
                         if !send_terminal(&terminal, sender).await {
-                            return false;
+                            return (false, None);
                         }
                         break;
                     }
                 }
             }
-            true
+            // Stream ended: reclaim the session the blocking task owned. A
+            // dropped sender means that task panicked (the engine lock is
+            // poisoned too) — close the socket.
+            match back_rx.await {
+                Ok(session) => (true, Some(session)),
+                Err(_) => (false, None),
+            }
         }
         // Unreachable: Ping/Pong/Close/Binary frames are filtered by the
         // caller loop above; anything else keeps the socket open.
-        _ => true,
+        _ => (true, Some(session)),
     }
 }

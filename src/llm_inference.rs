@@ -195,6 +195,50 @@ impl LlmInference {
         self.conversation_history.clear();
     }
 
+    /// Fork a pristine session from this engine's config (see `inference_session`).
+    /// Shares nothing mutable: fresh history, sampler rebuilt from
+    /// `(seed, sampling)` with the session id salted in. Weights stay
+    /// shared; KV state is rebuilt per request under the serial lock.
+    pub fn fork_session(&self) -> crate::inference_session::InferenceSession {
+        crate::inference_session::InferenceSession::new(self.config.seed, &self.config.sampling)
+    }
+
+    /// Generate with a session swapped in: the session's history and sampler
+    /// replace the engine-resident ones for the call, then swap back —
+    /// including on `Err` (result is captured first). Callers must hold the
+    /// engine exclusively; all do (the write guard spans blocking compute).
+    /// Weights, KV/prefix caches, and the cancel flag stay shared by design:
+    /// KV is rebuilt per request and the prefix cache is hash-validated.
+    pub fn generate_with_session(
+        &mut self,
+        user_message: &str,
+        max_tokens: Option<usize>,
+        session: &mut crate::inference_session::InferenceSession,
+    ) -> Result<String> {
+        std::mem::swap(&mut self.conversation_history, &mut session.history);
+        std::mem::swap(&mut self.sampler, &mut session.sampler);
+        let out = self.generate(user_message, max_tokens);
+        std::mem::swap(&mut self.conversation_history, &mut session.history);
+        std::mem::swap(&mut self.sampler, &mut session.sampler);
+        out
+    }
+
+    /// Streaming twin of `generate_with_session`: same swap discipline.
+    pub fn generate_streaming_with_session(
+        &mut self,
+        user_message: &str,
+        max_tokens: Option<usize>,
+        tx: mpsc::Sender<crate::llm_stream::StreamEvent>,
+        session: &mut crate::inference_session::InferenceSession,
+    ) -> Result<()> {
+        std::mem::swap(&mut self.conversation_history, &mut session.history);
+        std::mem::swap(&mut self.sampler, &mut session.sampler);
+        let out = self.generate_streaming(user_message, max_tokens, tx);
+        std::mem::swap(&mut self.conversation_history, &mut session.history);
+        std::mem::swap(&mut self.sampler, &mut session.sampler);
+        out
+    }
+
     pub fn append_to_history(&mut self, role: MessageRole, content: &str) {
         self.conversation_history.push(ChatMessage {
             role,
