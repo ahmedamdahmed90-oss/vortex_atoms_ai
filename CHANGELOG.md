@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-21
+
 ### Per-session inference isolation (2026-09-21)
 - New `inference_session` module: sessions own history + sampler; weights
   stay shared-serial (Qwen2 weights are not `Clone`, candle KV lives in
