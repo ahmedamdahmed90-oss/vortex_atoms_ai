@@ -41,7 +41,7 @@ Legal transitions only (everything else rejected, state unchanged):
 |-------|-------|-----|
 | `max_memory_bytes` | 256 MiB | matrix config + supervisor default literals |
 | `max_active_atoms` | 8 | orchestrator `max_loaded_fragments` default |
-| `max_concurrent_inference` | 2 | `MAX_CONCURRENT_INFERENCE` semaphore |
+| `max_concurrent_inference` | 2 | `MAX_CONCURRENT_INFERENCE` semaphore floor (API admission is `max(pool_size, 2)`; execution uses `EnginePool`) |
 | `max_context_tokens` | 4096 | static upper bound (per-tier limits still apply) |
 
 `FiveKernelMatrixConfig::default` and `SupervisorState::default` now
