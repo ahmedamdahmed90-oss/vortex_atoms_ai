@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-09-21
+## [0.2.2] - 2026-09-21
 
 ### IVF approximate retrieval (2026-09-21)
 - Hand-rolled spherical k-means IVF (`IvfIndex`) implementing
@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of `(u64::MAX >> 11)`, collapsing all vectors parallel
   (every cosine read 1.0). Fixed + documented in-code; production
   `FastHashEmbedder`/drafter RNGs audited clean (correct divisors).
+
+## [0.2.1] - 2026-09-21
 
 ### Per-session inference isolation (2026-09-21)
 - New `inference_session` module: sessions own history + sampler; weights
