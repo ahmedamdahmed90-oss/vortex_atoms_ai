@@ -92,7 +92,24 @@ pub struct PerformanceConfig {
     /// `security.allow_model_routing`.
     #[serde(default = "default_tier_policy")]
     pub tier_policy: String,
+    /// Engine pool size: how many independent `LlmInference` slots load at
+    /// boot (each slot owns full weights + KV — RAM scales with this).
+    ///
+    /// - `1` (default): single serial engine (matches the 2 GB envelope).
+    /// - `2..=MAX_POOL_SIZE`: true concurrent generate on separate slots
+    ///   (admission capacity becomes `max(pool_size, 2)` so a pool of 1
+    ///   still admits one waiter behind the free-list, as before).
+    ///
+    /// Clamped to `1..=MAX_POOL_SIZE` by [`Self::effective_pool_size`].
+    /// Requires restart (pool is built once at server boot).
+    #[serde(default)]
+    pub pool_size: usize,
 }
+
+/// Upper bound accepted for `performance.pool_size` (RAM guard: every slot
+/// materializes a full weight set + KV cache; 4 ≈ ceiling for a 2–8 GB box
+/// with the default ~469 MB model).
+pub const MAX_POOL_SIZE: usize = 4;
 
 fn default_kv_cache_dtype() -> String {
     "f16".to_string()
@@ -124,6 +141,14 @@ fn default_layer_prefetch() -> bool {
 
 fn default_inference_backend() -> String {
     "candle".to_string()
+}
+
+impl PerformanceConfig {
+    /// Pool size after clamping: always at least one slot, never above
+    /// [`MAX_POOL_SIZE`] (0 and absurd values are not trusted from disk).
+    pub fn effective_pool_size(&self) -> usize {
+        self.pool_size.clamp(1, MAX_POOL_SIZE)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

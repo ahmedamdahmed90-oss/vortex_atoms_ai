@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio::sync::Semaphore;
 
+use crate::engine_pool::{EnginePool, PooledEngine};
 use crate::knowledge_import::KnowledgeImporter;
 use crate::llm_config::LlmConfig;
 use crate::llm_embed::VectorStore;
@@ -19,11 +20,17 @@ use crate::llm_tools::{KernelToolExecutor, ToolExecutor};
 use crate::security::{AuthRole, SecurityState};
 use crate::Result;
 
-/// Bounds how many blocking inference jobs (generate/chat/batch/tool-call/swap)
-/// may burn CPU at once. Without this, a handful of concurrent requests —
-/// multiplied by client retries — occupies every Tokio worker with synchronous
-/// model compute and the whole server stops answering (even /v1/health).
-/// Excess requests fail fast with 503 so callers back off instead of piling up.
+/// Floor for how many blocking inference jobs (generate/chat/batch/tool-call/
+/// swap) may be admitted at once. Without any bound, a handful of concurrent
+/// requests — multiplied by client retries — occupies every Tokio worker with
+/// synchronous model compute and the whole server stops answering (even
+/// /v1/health). Excess requests fail fast with 503 so callers back off
+/// instead of piling up.
+///
+/// Actual admission capacity at boot is `max(effective_pool_size,
+/// MAX_CONCURRENT_INFERENCE)` so a pool of 1 keeps the historical
+/// "one runs, one waits on the free-list" queueing, while `pool_size ≥ 2`
+/// admits up to `pool_size` true parallel generates.
 pub const MAX_CONCURRENT_INFERENCE: usize = 2;
 
 /// Hard cap for /v1/embeddings batch size: embedding is cheap per text but the
@@ -37,33 +44,38 @@ pub const MAX_EMBEDDING_INPUTS: usize = 256;
 /// clamps its request to this bound to guarantee bounded response time.
 pub const MAX_API_MAX_TOKENS: usize = 512;
 
-/// Stage 9 concurrency model (audited, do not restructure casually):
+/// Stage 9 concurrency model + engine pool (audited, do not restructure casually):
 ///
-/// - **Admission**: `inference_permits` semaphore (`MAX_CONCURRENT_INFERENCE`)
-///   bounds how many requests may queue for compute; excess fails fast (503).
-/// - **Execution**: the engine `RwLock` write guard is held across the whole
-///   blocking generation, so generation is effectively **serial** (1 at a
-///   time) even though 2 permits may be admitted. The two limits mean
-///   different things: admission-burst vs execution-exclusion.
+/// - **Admission**: `inference_permits` semaphore
+///   (`max(pool_size, MAX_CONCURRENT_INFERENCE)`) bounds how many requests
+///   may queue for compute; excess fails fast (503). Permits stay held across
+///   the whole checkout + generate so waiter count never exceeds capacity.
+/// - **Execution**: [`EnginePool`] hands out one free slot per request
+///   (`checkout` waits async on the free-list when every slot is busy).
+///   With `pool_size = 1` this is the old serial engine; with `pool_size ≥ 2`
+///   up to `pool_size` generates run truly in parallel (each slot owns full
+///   weights + KV — RAM scales with the pool).
 /// - **Isolation**: inference runs on sessions (`inference_session`), never
 ///   on bare engine state. HTTP endpoints fork an ephemeral session per
 ///   request (fresh history + private sampler: temperature sticks to the
 ///   request only); each `/ws` connection owns one session for its lifetime
 ///   (own history across its messages, own temperature); IKC / tool / batch
 ///   paths also fork an ephemeral session per call (no temperature or
-///   history leak into later requests). Weights stay shared (immutable
-///   tensors) and KV is rebuilt per request under the serial lock.
-/// - **Observability**: `/v1/health` uses `try_read` and never queues behind
-///   a running generation.
+///   history leak into later requests). KV is rebuilt per request on the
+///   checked-out slot only.
+/// - **Observability**: `/v1/health`, `/v1/device`, `/v1/models` use
+///   `try_read_any` across slots and never queue behind a running generation.
+/// - **Model swaps**: route hints swap the checked-out slot in place and
+///   publish a config epoch; every other slot lazy-reloads on its next
+///   checkout. Admin `/v1/models/swap` write-locks each slot sequentially
+///   (`swap_all`).
 /// - **Residual sharing** (documented, harmless): n-gram drafter tables
-///   (the argmax/Levi verifier is exact), the hash-validated prefix-KV
-///   cache, and the engine-resident cancel flag used only by bare-engine
-///   callers (CLI, backend trait) — session paths install a per-session
-///   cancel flag for the duration of the call. Weights remain one shared
-///   serial engine (Qwen2 weights are not `Clone`; full per-session
-///   engines need a pool — future work #1).
+///   live per-slot (the argmax/Levi verifier is exact), the hash-validated
+///   prefix-KV cache is per-slot, and the engine-resident cancel flag is
+///   used only by bare-engine callers (CLI, backend trait) — session paths
+///   install a per-session cancel flag for the duration of the call.
 pub struct ApiState {
-    pub engine: Arc<RwLock<LlmInference>>,
+    pub pool: Arc<EnginePool>,
     pub tool_executor: Arc<dyn ToolExecutor>,
     pub knowledge: VectorStore,
     pub startup_time: std::time::Instant,
@@ -116,8 +128,10 @@ pub fn throughput_tps(units: usize, elapsed_secs: f64) -> f64 {
 ///
 /// Fail-closed: without `security.allow_model_routing` the hint is rejected;
 /// with it, the named matrix entry is ensured (download + SHA-256 manifest
-/// verify) and swapped in. Every routed swap is audit-logged. Engine and
-/// rest-of-the-machine model state intentionally persist after the request.
+/// verify) and swapped into `engine` (the checked-out slot). On success the
+/// caller must `pool.publish_config(new_config, Some(pooled.index()))` so
+/// every other slot lazy-reloads on its next checkout — this function only
+/// mutates the slot it was given. Every routed swap is audit-logged.
 ///
 /// Returns `Ok(())` when nothing was requested or the swap succeeded, and
 /// `Err(message)` for a 400-class rejection.
@@ -126,9 +140,9 @@ fn route_model_hint(
     sec: &SecurityState,
     peer: &str,
     model: Option<&str>,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<Option<LlmConfig>, String> {
     let Some(name) = model else {
-        return Ok(());
+        return Ok(None);
     };
     if !sec.cfg_snapshot().allow_model_routing {
         return Err(
@@ -154,7 +168,7 @@ fn route_model_hint(
     tokio::task::block_in_place(|| engine.swap_model(&new_config))
         .map_err(|e| e.public_message())?;
     crate::security::audit_log(sec, "models.route", peer, &format!("hint={name}"), true);
-    Ok(())
+    Ok(Some(new_config))
 }
 
 // Fail-fast admission control for inference routes: returns the permit on
@@ -175,6 +189,14 @@ pub(crate) async fn acquire_inference_permit(
     permits
         .try_acquire_owned()
         .map_err(|_| engine_busy_response())
+}
+
+/// Check out a pool slot under an already-held permit. The permit bounds the
+/// waiter set; `checkout` blocks async only until a slot frees (never longer
+/// than one generate on another slot).
+async fn checkout_engine(state: &Arc<RwLock<ApiState>>) -> PooledEngine {
+    let pool = state.read().await.pool.clone();
+    pool.checkout().await
 }
 
 #[derive(Deserialize)]
@@ -398,13 +420,13 @@ async fn handle_generate(
         Ok(p) => p,
         Err(resp) => return resp,
     };
-    // Clone the engine handle under a single brief read so the global ApiState
+    // Clone shared handles under a single brief read so the global ApiState
     // lock is never held across the blocking compute below.
-    let (engine_arc, context, sec) = {
+    let (pool, context, sec) = {
         let guard = state.read().await;
         let ctx = crate::knowledge_import::build_rag_context(&guard.knowledge, &req.prompt, 3)
             .unwrap_or_default();
-        (guard.engine.clone(), ctx, guard.security.clone())
+        (guard.pool.clone(), ctx, guard.security.clone())
     };
     let snap = sec.cfg_snapshot();
     if let Err(e) = crate::security::check_text_len(&req.prompt, snap.max_prompt_chars, "prompt") {
@@ -417,7 +439,8 @@ async fn handle_generate(
         },
         None => None,
     };
-    let mut engine = engine_arc.write().await;
+    let pooled = pool.checkout().await;
+    let mut engine = pooled.write().await;
     let rung_hint = if snap.allow_model_routing && req.model.is_none() {
         crate::model_ladder::select_rung(
             crate::perf_topology::current_tier(),
@@ -429,13 +452,15 @@ async fn handle_generate(
     } else {
         None
     };
-    if let Err(msg) = route_model_hint(
+    match route_model_hint(
         &mut engine,
         &sec,
         &peer.to_string(),
         req.model.as_deref().or(rung_hint.as_deref()),
     ) {
-        return bad_request(msg).into_response();
+        Err(msg) => return bad_request(msg).into_response(),
+        Ok(Some(new_config)) => pool.publish_config(new_config, Some(pooled.index())),
+        Ok(None) => {}
     }
     // Per-session isolation (inference_session): this request runs on an
     // ephemeral session forked from engine config — fresh history, private
@@ -515,7 +540,7 @@ async fn handle_chat(
     };
     // Clone shared handles under brief reads; no ApiState guard is held
     // across the blocking inference below.
-    let (engine_arc, context, sec) = {
+    let (pool, context, sec) = {
         let guard = state.read().await;
         let ctx = crate::knowledge_import::build_rag_context(
             &guard.knowledge,
@@ -523,7 +548,7 @@ async fn handle_chat(
             3,
         )
         .unwrap_or_default();
-        (guard.engine.clone(), ctx, guard.security.clone())
+        (guard.pool.clone(), ctx, guard.security.clone())
     };
     let snap = sec.cfg_snapshot();
     if let Err(e) = crate::security::check_text_len(
@@ -540,7 +565,8 @@ async fn handle_chat(
         },
         None => None,
     };
-    let mut engine = engine_arc.write().await;
+    let pooled = pool.checkout().await;
+    let mut engine = pooled.write().await;
     let rung_hint = if snap.allow_model_routing && req.model.is_none() {
         crate::model_ladder::select_rung(
             crate::perf_topology::current_tier(),
@@ -552,13 +578,15 @@ async fn handle_chat(
     } else {
         None
     };
-    if let Err(msg) = route_model_hint(
+    match route_model_hint(
         &mut engine,
         &sec,
         &peer.to_string(),
         req.model.as_deref().or(rung_hint.as_deref()),
     ) {
-        return bad_request(msg).into_response();
+        Err(msg) => return bad_request(msg).into_response(),
+        Ok(Some(new_config)) => pool.publish_config(new_config, Some(pooled.index())),
+        Ok(None) => {}
     }
     // Ephemeral session (see handle_generate): caller messages seed the
     // session history, temperature sticks to the session only. The old
@@ -626,7 +654,7 @@ async fn handle_chat(
 async fn handle_health(
     AxumState(state): AxumState<Arc<RwLock<ApiState>>>,
 ) -> axum::response::Response {
-    // Observability must stay live even while inference saturates the engine:
+    // Observability must stay live even while inference saturates the pool:
     // never queue behind a minutes-long generation, report busy instead.
     let state_guard = match state.try_read() {
         Ok(g) => g,
@@ -638,9 +666,9 @@ async fn handle_health(
                 .into_response();
         }
     };
-    let engine = match state_guard.engine.try_read() {
-        Ok(g) => g,
-        Err(_) => {
+    let engine = match state_guard.pool.try_read_any() {
+        Some(g) => g,
+        None => {
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(serde_json::json!({"status": "busy"})),
@@ -799,9 +827,9 @@ async fn handle_device(
                 .into_response();
         }
     };
-    let engine = match state_guard.engine.try_read() {
-        Ok(g) => g,
-        Err(_) => {
+    let engine = match state_guard.pool.try_read_any() {
+        Some(g) => g,
+        None => {
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(serde_json::json!({"error": "engine busy: retry later"})),
@@ -908,10 +936,10 @@ async fn handle_tool_call(
             Ok(p) => p,
             Err(rejection) => return rejection,
         };
-        // Clone the engine handle under a brief read; the blocking generate
+        // Check out a pool slot under the permit; the blocking generate
         // below runs without holding any ApiState guard.
-        let engine_arc = state.read().await.engine.clone();
-        let mut engine = engine_arc.write().await;
+        let pooled = checkout_engine(&state).await;
+        let mut engine = pooled.write().await;
         // Stage 9 session isolation (see handle_generate): ephemeral session
         // so history/sampler never touch engine-resident state.
         let mut session = engine.fork_session();
@@ -1186,7 +1214,7 @@ async fn handle_batch(
     };
     // Snapshot prompts (with RAG context) under a brief read, then run the
     // multi-prompt blocking generation without holding any ApiState guard.
-    let (engine_arc, augmented) = {
+    let (pool, augmented) = {
         let guard = state.read().await;
         if req.prompts.len() > guard.security.cfg_snapshot().max_batch_prompts {
             return bad_request(format!(
@@ -1216,9 +1244,10 @@ async fn handle_batch(
                 }
             })
             .collect();
-        (guard.engine.clone(), augmented)
+        (guard.pool.clone(), augmented)
     };
-    let mut engine = engine_arc.write().await;
+    let pooled = pool.checkout().await;
+    let mut engine = pooled.write().await;
     // Stage 9 session isolation (see handle_generate): each batch runs on
     // an ephemeral session with cleared history — entries cannot observe
     // each other or engine-resident state.
@@ -1469,11 +1498,13 @@ async fn handle_swap_model(
         Ok(p) => p,
         Err(resp) => return resp,
     };
-    // Clone the engine handle first: the minutes-long model load below must
+    // Clone the pool handle first: the minutes-long model load below must
     // not hold the global ApiState write guard, or every endpoint stalls.
-    let engine_arc = state.read().await.engine.clone();
-    let mut engine = engine_arc.write().await;
-    if let Err(e) = tokio::task::block_in_place(|| engine.swap_model(&new_config)) {
+    // `swap_all` write-locks each slot sequentially (waits for in-flight
+    // generates one slot at a time — no multi-lock deadlock). Each
+    // `swap_model` runs under `block_in_place` inside `swap_all`.
+    let pool = state.read().await.pool.clone();
+    if let Err(e) = pool.swap_all(&new_config).await {
         crate::security::audit_log(&sec, "models.swap", &peer_str, "load failed", false);
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1482,6 +1513,13 @@ async fn handle_swap_model(
             .into_response();
     }
 
+    let arch_device = {
+        let guard = pool.try_read_any();
+        match guard {
+            Some(g) => (g.model_architecture().to_string(), g.device_type()),
+            None => ("unknown".to_string(), "unknown".to_string()),
+        }
+    };
     crate::security::audit_log(
         &sec,
         "models.swap",
@@ -1497,8 +1535,8 @@ async fn handle_swap_model(
         StatusCode::OK,
         Json(serde_json::json!({
             "status": "ok",
-            "architecture": engine.model_architecture().to_string(),
-            "device": engine.device_type(),
+            "architecture": arch_device.0,
+            "device": arch_device.1,
         })),
     )
         .into_response()
@@ -1517,9 +1555,9 @@ async fn handle_list_models(
                 .into_response();
         }
     };
-    let engine = match state_guard.engine.try_read() {
-        Ok(g) => g,
-        Err(_) => {
+    let engine = match state_guard.pool.try_read_any() {
+        Some(g) => g,
+        None => {
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(serde_json::json!({"error": "engine busy: retry later"})),
@@ -2027,7 +2065,11 @@ pub async fn start_server_with_tls(
     tls: TlsIdentity,
     shutdown: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<()> {
-    let engine = LlmInference::load(config)?;
+    let perf = crate::vortex_config::VortexConfig::load().performance;
+    let pool_size = perf.effective_pool_size();
+    println!("[VortexAPI] Loading engine pool (size={pool_size})...");
+    let pool = EnginePool::load(config, pool_size)?;
+    let admission = pool_size.max(MAX_CONCURRENT_INFERENCE);
     let tool_executor = Arc::new(KernelToolExecutor);
 
     // Retention: drop aged chat sessions before serving.
@@ -2046,11 +2088,11 @@ pub async fn start_server_with_tls(
     let knowledge = import_knowledge_at_startup();
 
     let api_state = Arc::new(RwLock::new(ApiState {
-        engine: Arc::new(RwLock::new(engine)),
+        pool: Arc::new(pool),
         tool_executor,
         knowledge,
         startup_time: std::time::Instant::now(),
-        inference_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_INFERENCE)),
+        inference_permits: Arc::new(Semaphore::new(admission)),
         security: sec.clone(),
     }));
 

@@ -40,7 +40,7 @@
 | Flaky `test_five_kernel_matrix_submit_ui_input` | PRE_EXISTING → untouched (already `#[ignore]`) |
 | Firefox E2E flakes | PRE_EXISTING → untouched (KNOWN_ISSUES) |
 | `cargo audit` upstream warnings | PRE_EXISTING → untouched (continue-on-error) |
-| `/ws` + IKC per-session partitioning | ~~CONFIRMED limitation~~ → **done** (session-ify: IKC/tool/batch/agent fork ephemeral sessions; per-session cancel flag). Weights stay one shared serial engine (pool = future work #1). |
+| `/ws` + IKC per-session partitioning | ~~CONFIRMED limitation~~ → **done** (session-ify: IKC/tool/batch/agent fork ephemeral sessions; per-session cancel flag). Engine pool for concurrent execution → **done** (`EnginePool`, `performance.pool_size`). |
 | GB-scale atom memory experiment | Out of scope for this box → designed in BENCHMARKS.md, not executed |
 
 ## Before / after metrics
@@ -58,7 +58,8 @@
 
 1. ~~WS/IKC streaming sessions share one engine~~ — **state isolation done**
    (history/sampler/cancel are per-session on IKC, tool, batch, agent, WS,
-   HTTP). Weights/KV remain one shared serial engine (pool = future work #1).
+   HTTP). Engine **pool done** (`EnginePool` free-list + config epoch;
+   `performance.pool_size` default 1, max 4 — each slot owns full weights).
 2. ~~ANN retrieval not implemented~~ — **done** (IVF opt-in via
    `VectorStore::trained_ivf`; see future work #4).
 3. Inference/memory numbers unmeasured here (no model on box; harness exists).
@@ -68,8 +69,9 @@
 ## Recommended future work
 
 1. ~~Per-session inference engines~~ — **state isolation done** (session
-   partition on every generate path + per-session cancel). Remaining:
-   engine *pool* for concurrent execution (weights are not `Clone`).
+   partition on every generate path + per-session cancel). ~~Engine pool
+   for concurrent execution~~ — **done** (`EnginePool` free-list, config
+   epoch lazy reload, `performance.pool_size` 1..=4).
 2. GB-scale atom experiment on provisioned hardware (BENCHMARKS.md §design).
 3. ~~Probabilistic speculative acceptance for sampling modes~~ — **done**
    (Levi accept + residual sampling; see CHANGELOG `[Unreleased]`).

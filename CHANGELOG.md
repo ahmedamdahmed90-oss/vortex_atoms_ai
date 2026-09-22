@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Engine pool for concurrent execution (2026-09-23)
+- **`EnginePool`** (`src/engine_pool.rs`): N independent `LlmInference`
+  slots (each owns a full weight set — candle `ModelWeights` is not
+  `Clone`; KV lives inside the model). Slots handed out by a free-list
+  (LIFO `Mutex<Vec<usize>>` + `tokio::sync::Notify`); returned on
+  `PooledEngine` Drop (including panic). Register interest before pop so
+  a concurrent check-in's `notify_one` cannot be lost.
+- **Admission vs execution split**: the API semaphore remains the
+  admission bound — capacity is now `max(effective_pool_size,
+  MAX_CONCURRENT_INFERENCE)` (floor 2 preserves historical queueing when
+  `pool_size = 1`). Execution is `pool.checkout().await`: one slot per
+  admitted generate. `pool_size ≥ 2` yields true parallel generation.
+- **Config epoch + lazy reload**: model swaps `publish_config` bump a
+  config epoch; the swapped slot is marked current; every other slot
+  reloads on its *next* checkout (never mid-generation). `swap_all`
+  write-locks each slot sequentially (no multi-lock deadlock).
+- **Observability never queues**: `/v1/health`, `/v1/device`,
+  `/v1/models` use `pool.try_read_any()` (any idle slot) → 503 busy only
+  when *every* slot is write-locked.
+- **WS**: new-connection session forks from the pool; generation
+  checks out a slot before `spawn_blocking` (slot returns via Drop when
+  the blocking task ends).
+- **`performance.pool_size`** config (default 1, clamped
+  `1..=MAX_POOL_SIZE=4` via `effective_pool_size()`); requires restart.
+- `route_model_hint` returns `Result<Option<LlmConfig>, String>` — on
+  success the caller publishes the config to the pool so lazily-reloaded
+  slots pick it up.
+- 4 new tests (free-list LIFO, epoch publish bounds-check, try_checkout
+  empty, pool_size clamp).
+
 ### Per-session state isolation (2026-09-22)
 - **All generate paths now fork an ephemeral `InferenceSession`** —
   IKC (`kernel_03` streaming + non-streaming), `/v1/tools/call`,

@@ -131,14 +131,18 @@ curl http://127.0.0.1:8080/v1/models
 
 The API bounds worst-case response time so the server never wedges behind long generations:
 
-- **Concurrency guard** — at most `MAX_CONCURRENT_INFERENCE` (2) blocking inferences run at once.
-  Excess requests are rejected instantly with `503 {"error": "engine busy: retry later"}` via a
-  `tokio::sync::Semaphore`; `block_in_place` keeps synchronous inference off the async workers.
+- **Concurrency guard** — at most `max(pool_size, 2)` blocking inferences run at once
+  (admission semaphore). Excess requests are rejected instantly with
+  `503 {"error": "engine busy: retry later"}`; `block_in_place` keeps synchronous inference
+  off the async workers. **Engine pool** (`performance.pool_size`, default 1, max 4):
+  admitted requests check out an independent engine slot so `pool_size ≥ 2` generates
+  in parallel; each slot owns its own weights/KV (RAM trades for throughput).
 - **Bounded tokens** — every inference route clamps the requested `max_tokens` to `MAX_API_MAX_TOKENS`
   (512). `/v1/models` reports `"max_generation_tokens": 512`. This caps worst-case latency per request.
-- **Live observability** — `/v1/health`, `/v1/device`, `/v1/models` use `try_read()`: while a
-  generation holds the engine, they answer `503 {"status": "busy"}` in a couple of milliseconds rather
-  than queueing behind the request.
+- **Live observability** — `/v1/health`, `/v1/device`, `/v1/models` use
+  `pool.try_read_any()`: while every slot is generating they answer
+  `503 {"status": "busy"}` in a couple of milliseconds rather than queueing behind the
+  request.
 - **Fast error paths** — malformed bodies are rejected in ~2 ms before any engine work
   (e.g. `422` for a missing `messages` field).
 

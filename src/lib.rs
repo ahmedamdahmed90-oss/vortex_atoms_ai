@@ -14,6 +14,7 @@ pub mod bio_medical_module;
 pub mod build_info;
 #[cfg(feature = "dashboard")]
 pub mod dashboard;
+pub mod engine_pool;
 pub mod engineering_expert_module;
 pub mod error;
 pub mod fastpath;

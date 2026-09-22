@@ -285,6 +285,28 @@ fn test_performance_config_deserializes_prefault() {
 }
 
 #[test]
+fn test_performance_config_pool_size_clamps() {
+    use vortex_atoms_ai::vortex_config::{PerformanceConfig, MAX_POOL_SIZE};
+
+    // Default: pool_size defaults to 1 (single shared engine).
+    let default_cfg: PerformanceConfig = serde_json::from_str("{}").expect("deserialize");
+    assert_eq!(default_cfg.effective_pool_size(), 1);
+
+    // Valid values pass through.
+    let ok: PerformanceConfig = serde_json::from_str(r#"{"pool_size": 3}"#).expect("deserialize");
+    assert_eq!(ok.effective_pool_size(), 3);
+
+    // Below minimum clamps to 1.
+    let low: PerformanceConfig = serde_json::from_str(r#"{"pool_size": 0}"#).expect("deserialize");
+    assert_eq!(low.effective_pool_size(), 1);
+
+    // Above MAX_POOL_SIZE clamps (GB-scale RAM envelope).
+    let high: PerformanceConfig =
+        serde_json::from_str(r#"{"pool_size": 99}"#).expect("deserialize");
+    assert_eq!(high.effective_pool_size(), MAX_POOL_SIZE);
+}
+
+#[test]
 fn test_llm_config_includes_prefault_field() {
     use vortex_atoms_ai::llm_config::LlmConfig;
     let cfg = LlmConfig::default();

@@ -120,8 +120,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<RwLock<ApiState>>) {
                     Some(s) => s,
                     None => {
                         let outer = state.read().await;
-                        let engine = outer.engine.read().await;
-                        engine.fork_session()
+                        outer.pool.fork_session().await
                     }
                 };
                 let (cont, sess) = handle_ws_message(msg, &mut sender, &state, sess).await;
@@ -177,8 +176,8 @@ async fn send_terminal(
 /// One message on one socket. Takes the connection's session by value and
 /// returns it alongside the keep-open flag: the blocking generation task
 /// owns the session while it runs and hands it back through a oneshot, so
-/// at most one task ever holds it. `None` back means the task panicked
-/// (the engine lock is poisoned too) — the caller must close the socket.
+/// at most one task ever holds it. `None` back means the task panicked —
+/// the caller must close the socket.
 async fn handle_ws_message(
     msg: Message,
     sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
@@ -203,7 +202,8 @@ async fn handle_ws_message(
 
             // Same admission control as the REST inference routes: without
             // this, WS clients could pile unbounded blocking compute onto
-            // the serial engine and starve every other endpoint.
+            // the pool and starve every other endpoint. The pool free-list
+            // then supplies a slot (waiters block only until one frees).
             let permit = match crate::llm_api::acquire_inference_permit(state).await {
                 Ok(p) => p,
                 Err(_) => {
@@ -217,11 +217,11 @@ async fn handle_ws_message(
                 }
             };
 
-            let (engine_arc, temp_cfg) = {
+            let (pool, temp_cfg) = {
                 let state_guard = state.read().await;
                 let snap = state_guard.security.cfg_snapshot();
                 (
-                    state_guard.engine.clone(),
+                    state_guard.pool.clone(),
                     (
                         snap.temperature_min,
                         snap.temperature_max,
@@ -252,13 +252,16 @@ async fn handle_ws_message(
             let prompt = request.prompt.clone();
             let max_tokens = crate::llm_api::clamp_max_tokens(request.max_tokens);
 
-            // The session crosses into the blocking task by value and comes
-            // back through a oneshot when generation ends.
+            // Check out a pool slot before crossing into the blocking task:
+            // the permit bounds waiters; checkout waits only until a slot frees.
+            let pooled = pool.checkout().await;
+            // The session and the pooled slot cross into the blocking task by
+            // value and come back through a oneshot when generation ends.
             let (back_tx, back_rx) = tokio::sync::oneshot::channel();
             tokio::task::spawn_blocking(move || {
                 // Held for the whole generation: bounds WS concurrency.
                 let _permit = permit;
-                let mut engine = engine_arc.blocking_write();
+                let mut engine = pooled.blocking_write();
 
                 if let Some(temp) = temperature {
                     // Sticky per connection: follows this socket only, never
@@ -275,6 +278,9 @@ async fn handle_ws_message(
                 ) {
                     eprintln!("[WS] Generation error: {}", e.public_message());
                 }
+                // Session returns to the async task; the pooled slot returns
+                // to the free-list when `pooled` (and the write guard above)
+                // drop at the end of this closure — no need to send it back.
                 let _ = back_tx.send(session);
             });
 
@@ -357,8 +363,9 @@ async fn handle_ws_message(
                 }
             }
             // Stream ended: reclaim the session the blocking task owned. A
-            // dropped sender means that task panicked (the engine lock is
-            // poisoned too) — close the socket.
+            // dropped sender means that task panicked — close the socket.
+            // The pooled slot was already returned to the free-list by the
+            // blocking task's Drop (or panics with it, if that task died).
             match back_rx.await {
                 Ok(session) => (true, Some(session)),
                 Err(_) => (false, None),
