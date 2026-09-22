@@ -44,6 +44,8 @@ pub struct LlmInference {
     /// `input_scratch` is not needed (candle Tensor is ephemeral) but we keep
     /// the Vec<u32> token window reused via `all_tokens` capacity.
     logits_scratch: Vec<f32>,
+    /// Target distribution buffer for probabilistic speculative acceptance.
+    prob_scratch: Vec<f32>,
     /// Layer double-buffer prefetch toggle (1.4, config `layer_prefetch`).
     layer_prefetch: bool,
     /// Sliding window KV cache size (config `kv_cache_window`).
@@ -52,12 +54,10 @@ pub struct LlmInference {
     kv_prefix_cache: bool,
     /// Cached prefix tokens for prefix KV reuse.
     cached_prefix_tokens: Option<Vec<u32>>,
-    /// Speculative decoding: n-gram drafter.
+    /// Speculative decoding coordinator (drafter + Levi/greedy verifier).
     speculative_decoder: Option<crate::speculative::SpeculativeDecoder>,
     /// Speculative decoding enabled (config `speculative_enabled`).
     speculative_enabled: bool,
-    /// N-gram drafter trained on conversation history.
-    ngram_drafter: Option<crate::speculative::NGramDrafter>,
 }
 
 impl LlmInference {
@@ -108,22 +108,23 @@ impl LlmInference {
 
         let cache = VortexCache::with_config(config.max_seq_len, kv_cache_window, kv_prefix_cache);
 
-        // Initialize speculative decoding if enabled
-        let (speculative_decoder, ngram_drafter) = if speculative_enabled {
+        // Initialize speculative decoding if enabled (single drafter instance:
+        // the decoder owns the only NGramDrafter — no divergent twin tables).
+        let speculative_decoder = if speculative_enabled {
             let drafter = crate::speculative::NGramDrafter::new(
                 ngram_order,
                 32000, // vocab size
                 config.sampling.temperature.unwrap_or(0.8) as f32,
                 config.seed,
             );
-            let decoder = crate::speculative::SpeculativeDecoder::new(
-                Box::new(drafter.clone()),
+            Some(crate::speculative::SpeculativeDecoder::new_seeded(
+                Box::new(drafter),
                 max_draft_tokens,
                 min_acceptance_rate,
-            );
-            (Some(decoder), Some(drafter))
+                config.seed ^ 0x5EED_1A7E,
+            ))
         } else {
-            (None, None)
+            None
         };
 
         let simd = build_info::simd_summary();
@@ -143,13 +144,13 @@ impl LlmInference {
             device,
             mmap: Some(mmap),
             logits_scratch: Vec::with_capacity(32000),
+            prob_scratch: Vec::with_capacity(32000),
             layer_prefetch,
             kv_cache_window,
             kv_prefix_cache,
             cached_prefix_tokens: None,
             speculative_decoder,
             speculative_enabled,
-            ngram_drafter,
         };
 
         // Spawn background prefault if configured (non-blocking).
@@ -305,97 +306,193 @@ impl LlmInference {
         self.cached_prefix_tokens.as_deref()
     }
 
-    /// Verify a batch of drafted tokens by running the model on the full sequence.
-    /// Returns logits for each position in the sequence.
-    fn verify_drafted_tokens(&mut self, sequence: &[u32]) -> Result<Vec<Vec<f32>>> {
-        let mut logits_seq = Vec::with_capacity(sequence.len());
-        for (pos, &token) in sequence.iter().enumerate() {
-            if self.layer_prefetch {
-                if let Some(ref mmap) = self.mmap {
-                    crate::perf_topology::prefetch_next_layer(mmap, pos * 4096, 1 << 20);
-                }
+    /// Train the decoder-owned n-gram drafter on history + system + prompt.
+    fn train_speculative_drafter(&mut self, prompt_tokens: &[u32]) {
+        if !self.speculative_enabled {
+            return;
+        }
+        let mut train_buf: Vec<u32> = Vec::with_capacity(prompt_tokens.len() * 2);
+        for msg in &self.conversation_history {
+            if let Ok(t) = self.tokenize(&msg.content) {
+                train_buf.extend(t);
             }
-            let input = Tensor::new(&[token], &self.device)?.unsqueeze(0)?;
+        }
+        if let Ok(t) = self.tokenize(&self.config.system_prompt) {
+            train_buf.extend(t);
+        }
+        train_buf.extend_from_slice(prompt_tokens);
+        if let Some(decoder) = &mut self.speculative_decoder {
+            if !train_buf.is_empty() {
+                decoder.drafter.update(&train_buf);
+            }
+        }
+    }
+
+    /// One speculative generation step (Levi probabilistic or greedy).
+    ///
+    /// Returns `(tokens_to_commit, forwards_performed)`.
+    ///
+    /// KV contract (mirrors the normal decode loop exactly):
+    /// - On entry, `context` is `all_tokens` and `pos == context.len()`.
+    ///   The normal path would `forward(context.last(), pos)` → sample →
+    ///   `push` → `pos += 1`.
+    /// - We perform that same first forward (p₀ verifies draft[0]).
+    /// - On accept of draft i we forward that token (as the normal path
+    ///   would forward the token it just sampled) to obtain pᵢ₊₁.
+    /// - On reject we emit a residual/argmax replacement and stop
+    ///   **without** forwarding the rejected draft or the replacement —
+    ///   the next loop iteration forwards the replacement, exactly like
+    ///   the normal path forwards a freshly sampled token.
+    /// - On full accept we forward the last accepted draft for bonus
+    ///   logits, sample the bonus, and commit it unforwarded (same lag).
+    /// - EOS stops the step immediately (not forwarded).
+    ///
+    /// Invariant: `forwards_performed == tokens_to_commit.len()`, so the
+    /// caller does `pos += forwards_performed` and KV stays aligned with
+    /// the normal `forward → sample → push → pos += 1` cadence.
+    fn speculative_step(&mut self, context: &[u32], max_draft: usize) -> Result<(Vec<u32>, usize)> {
+        if !self.speculative_enabled || context.is_empty() || max_draft == 0 {
+            return Ok((Vec::new(), 0));
+        }
+        let greedy = self.sampler.is_greedy();
+        let eos = self.eos_token_id;
+
+        let proposals = match &mut self.speculative_decoder {
+            Some(dec) => dec.draft_with_probs(context, max_draft),
+            None => return Ok((Vec::new(), 0)),
+        };
+        if proposals.is_empty() {
+            return Ok((Vec::new(), 0));
+        }
+        let drafted: Vec<u32> = proposals.iter().map(|(t, _)| *t).collect();
+        let qs: Vec<crate::speculative::SparseDist> =
+            proposals.iter().map(|(_, q)| q.clone()).collect();
+
+        // Forward context.last() at pos=context.len() → p₀ (verifies draft[0]).
+        let pos = context.len();
+        let mut logits_vec = {
+            let input = Tensor::new(&[*context.last().unwrap()], &self.device)?.unsqueeze(0)?;
             let logits = self.model.forward(&input, pos)?;
             let logits = logits.squeeze(0)?.squeeze(0)?;
-            let logits_vec = logits.to_vec1::<f32>()?;
-            logits_seq.push(logits_vec);
-        }
-        Ok(logits_seq)
-    }
+            logits.to_vec1::<f32>()?
+        };
+        let mut forwards = 1usize;
 
-    /// Train the n-gram drafter on the given tokens.
-    #[allow(dead_code)]
-    fn train_ngram_drafter(&mut self, tokens: &[u32]) {
-        if let Some(drafter) = &mut self.ngram_drafter {
-            drafter.train(tokens);
-        }
-    }
+        let mut penalty_ctx = context.to_vec();
+        let mut committed: Vec<u32> = Vec::with_capacity(drafted.len() + 1);
+        let mut hit_eos = false;
+        let mut rejected = false;
 
-    /// Collect tokens from conversation history and system prompt for drafter training.
-    #[allow(dead_code)]
-    fn collect_drafter_training_tokens(&self) -> Vec<u32> {
-        let mut all_tokens = Vec::new();
-        for msg in &self.conversation_history {
-            if let Ok(tokens) = self.tokenize(&msg.content) {
-                all_tokens.extend(tokens);
-            }
-        }
-        if let Ok(tokens) = self.tokenize(&self.config.system_prompt) {
-            all_tokens.extend(tokens);
-        }
-        all_tokens
-    }
-
-    /// Speculative generation step: draft tokens and verify them.
-    /// Returns (accepted_tokens, should_continue_speculative).
-    fn speculative_step(&mut self, context: &[u32], max_draft: usize) -> Result<(Vec<u32>, bool)> {
-        if let Some(decoder) = &mut self.speculative_decoder {
-            // Get logits for the full sequence (context + drafted)
-            let drafted = decoder.drafter.draft(context, max_draft);
-            if drafted.is_empty() {
-                return Ok((Vec::new(), false));
-            }
-
-            let mut full_seq = context.to_vec();
-            full_seq.extend_from_slice(&drafted);
-
-            let logits_seq = self.verify_drafted_tokens(&full_seq)?;
-
-            let mut accepted = Vec::new();
-            for (i, &drafted_tok) in drafted.iter().enumerate() {
-                let pos = context.len() + i;
-                if pos < logits_seq.len() {
-                    let logits = &logits_seq[pos];
-                    let best_tok = crate::llm_sampling::argmax_index(logits) as u32;
-                    if best_tok == drafted_tok {
-                        accepted.push(drafted_tok);
-                    } else {
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-
-            let accepted_count = accepted.len();
-            let acceptance_rate = if max_draft > 0 {
-                accepted_count as f32 / max_draft as f32
+        for (i, &d) in drafted.iter().enumerate() {
+            let (token, accepted) = if greedy {
+                // Same penalty window as sample_with_scratch, then argmax.
+                self.sampler.penalized_logits_into(
+                    &logits_vec,
+                    &penalty_ctx,
+                    &mut self.prob_scratch,
+                );
+                let dec = self.speculative_decoder.as_mut().unwrap();
+                dec.accept_greedy(d, &self.prob_scratch)
             } else {
-                0.0
+                self.sampler.target_probs_logits(
+                    &logits_vec,
+                    &penalty_ctx,
+                    &mut self.prob_scratch,
+                )?;
+                let dec = self.speculative_decoder.as_mut().unwrap();
+                let p = std::mem::take(&mut self.prob_scratch);
+                let r = dec.accept_levi(d, &qs[i], &p);
+                self.prob_scratch = p;
+                r
             };
 
-            if !accepted.is_empty() {
-                if let Some(decoder) = &mut self.speculative_decoder {
-                    decoder.drafter.update(&accepted);
-                }
+            committed.push(token);
+            penalty_ctx.push(token);
+
+            if token == eos {
+                hit_eos = true;
+                break;
+            }
+            if !accepted {
+                rejected = true;
+                break;
             }
 
-            let continue_speculative = acceptance_rate >= 0.5;
-            Ok((accepted, continue_speculative))
-        } else {
-            Ok((Vec::new(), false))
+            // Accepted: forward this token to get logits for the next draft
+            // (or, on the last draft, the bonus-token logits).
+            let input = Tensor::new(&[token], &self.device)?.unsqueeze(0)?;
+            let logits = self.model.forward(&input, pos + forwards)?;
+            let logits = logits.squeeze(0)?.squeeze(0)?;
+            logits_vec = logits.to_vec1::<f32>()?;
+            forwards += 1;
         }
+
+        if !hit_eos && !rejected && !committed.is_empty() {
+            // logits_vec is the bonus distribution (after last accepted draft).
+            let bonus = if greedy {
+                self.sampler.penalized_logits_into(
+                    &logits_vec,
+                    &penalty_ctx,
+                    &mut self.prob_scratch,
+                );
+                crate::llm_sampling::argmax_index(&self.prob_scratch) as u32
+            } else {
+                self.sampler.target_probs_logits(
+                    &logits_vec,
+                    &penalty_ctx,
+                    &mut self.prob_scratch,
+                )?;
+                let u = match &mut self.speculative_decoder {
+                    Some(dec) => dec.random_f32(),
+                    None => 0.0,
+                };
+                let p = &self.prob_scratch;
+                let mut r = u;
+                let mut chosen = crate::llm_sampling::argmax_index(p) as u32;
+                for (idx, &pi) in p.iter().enumerate() {
+                    r -= pi;
+                    if r <= 0.0 {
+                        chosen = idx as u32;
+                        break;
+                    }
+                }
+                chosen
+            };
+            committed.push(bonus);
+            // bonus is NOT forwarded (normal-path lag).
+            if bonus == eos {
+                hit_eos = true;
+            }
+        }
+
+        // Teach the drafter what stuck (drop a trailing rejection replacement).
+        if let Some(dec) = &mut self.speculative_decoder {
+            let n_ok = if rejected || hit_eos {
+                // Last committed may be a replacement or EOS; EOS was a real
+                // draft/sample so count it; a rejection replacement should not
+                // train as an accepted draft.
+                if rejected {
+                    committed.len().saturating_sub(1)
+                } else {
+                    committed.len()
+                }
+            } else {
+                committed.len() // all accepted + bonus
+            };
+            if n_ok > 0 {
+                dec.drafter.update(&committed[..n_ok]);
+            }
+            // Step-level acceptance gate: caller may consult this via
+            // `acceptance_rate()`; `min_acceptance_rate` lives on the decoder.
+        }
+
+        debug_assert_eq!(
+            forwards,
+            committed.len(),
+            "KV forward count must match committed tokens"
+        );
+
+        Ok((committed, forwards))
     }
 
     pub fn generate(&mut self, user_message: &str, max_tokens: Option<usize>) -> Result<String> {
@@ -467,6 +564,10 @@ impl LlmInference {
                 .reserve(32000 - self.logits_scratch.capacity());
         }
 
+        // Train the n-gram drafter on prompt + history before drafting.
+        self.train_speculative_drafter(&tokens);
+        let mut spec_allow = self.speculative_enabled;
+
         while generated < max {
             if self.is_cancelled() {
                 break;
@@ -517,35 +618,53 @@ impl LlmInference {
                 }
             }
 
-            // Speculative decoding: try to draft and verify multiple tokens at once.
-            // Stage 8 correctness scope: the verifier accepts drafts by greedy
-            // argmax, which is exact ONLY under greedy sampling. Under
-            // temperature/top-k/top-p sampling it would distort the output
-            // distribution (and skip the repeat penalty), so the speculative
-            // path is skipped unless the sampler is in ArgMax mode. The
-            // fallback below then samples normally — output distribution
-            // unchanged in every mode.
-            if self.speculative_enabled && self.sampler.is_greedy() {
-                if let Some(decoder) = &mut self.speculative_decoder {
-                    let max_draft = decoder.max_draft_tokens;
-                    if let Ok((accepted, _continue_spec)) =
-                        self.speculative_step(&all_tokens, max_draft)
+            // Speculative decoding: probabilistic (Levi) or greedy acceptance.
+            // Enabled by `performance.speculative_enabled` (default off →
+            // output distribution bit-identical to the normal path).
+            // Greedy: argmax-exact. Sampling modes: Levi accept/reject with
+            // residual resampling so the target distribution is preserved.
+            // After a non-empty step the KV has already advanced — we must
+            // `continue` (never fall through to a second forward).
+            if self.speculative_enabled && spec_allow {
+                let remaining = max - generated;
+                let max_draft = self
+                    .speculative_decoder
+                    .as_ref()
+                    .map(|d| d.max_draft_tokens)
+                    .unwrap_or(0)
+                    .min(remaining.saturating_sub(1));
+                if max_draft > 0 {
+                    if let Ok((committed, forwards)) = self.speculative_step(&all_tokens, max_draft)
                     {
-                        for &tok in &accepted {
-                            all_tokens.push(tok);
-                            generated += 1;
-                            pos += 1;
-                            if tok == self.eos_token_id {
+                        if !committed.is_empty() {
+                            debug_assert_eq!(forwards, committed.len());
+                            debug_assert!(committed.len() <= remaining);
+                            let mut hit_eos = false;
+                            for &tok in &committed {
+                                all_tokens.push(tok);
+                                generated += 1;
+                                pos += 1;
+                                if tok == self.eos_token_id {
+                                    hit_eos = true;
+                                    break;
+                                }
+                            }
+                            if hit_eos || generated >= max {
                                 break;
                             }
-                        }
-                        if generated >= max {
-                            break;
-                        }
-                        if !accepted.is_empty() {
-                            // Speculative step succeeded, continue to next iteration
+                            // Pause speculation when the running acceptance
+                            // rate falls below the decoder's threshold.
+                            spec_allow = self
+                                .speculative_decoder
+                                .as_ref()
+                                .map(|d| {
+                                    d.total_drafted == 0
+                                        || d.acceptance_rate() >= d.min_acceptance_rate
+                                })
+                                .unwrap_or(false);
                             continue;
                         }
+                        // Empty draft → fall through to normal sampling.
                     }
                 }
             }
@@ -664,6 +783,9 @@ impl LlmInference {
             self.logits_scratch
                 .reserve(32000 - self.logits_scratch.capacity());
         }
+        // Train the n-gram drafter on prompt + history before drafting.
+        self.train_speculative_drafter(&tokens);
+        let mut spec_allow = self.speculative_enabled;
         // Tokenizer decode is batched per WS coalesce window (50ms, §6.1):
         // we still push per token but the WS layer coalesces; no String
         // growth inside the hot loop beyond the coalescer's buffer.
@@ -707,6 +829,57 @@ impl LlmInference {
                 if let Some(ref mmap) = self.mmap {
                     let off = (pos * 4096) % mmap.len().max(1);
                     crate::perf_topology::prefetch_next_layer(mmap, off, 1 << 20);
+                }
+            }
+
+            // Speculative decoding (streaming twin of the batch path): same
+            // Levi/greedy accept, each committed token is emitted as a stream
+            // event before moving on.
+            if self.speculative_enabled && spec_allow {
+                let remaining = max - generated;
+                let max_draft = self
+                    .speculative_decoder
+                    .as_ref()
+                    .map(|d| d.max_draft_tokens)
+                    .unwrap_or(0)
+                    .min(remaining.saturating_sub(1));
+                if max_draft > 0 {
+                    if let Ok((committed, forwards)) = self.speculative_step(&all_tokens, max_draft)
+                    {
+                        if !committed.is_empty() {
+                            debug_assert_eq!(forwards, committed.len());
+                            debug_assert!(committed.len() <= remaining);
+                            let mut hit_eos = false;
+                            for &tok in &committed {
+                                all_tokens.push(tok);
+                                generated += 1;
+                                pos += 1;
+                                if let Ok(Some(text)) = output_stream.next_token(tok) {
+                                    let _ = tx.blocking_send(StreamEvent::Token {
+                                        token_id: tok,
+                                        text,
+                                        pos: pos - 1,
+                                    });
+                                }
+                                if tok == self.eos_token_id {
+                                    hit_eos = true;
+                                    break;
+                                }
+                            }
+                            if hit_eos || generated >= max {
+                                break;
+                            }
+                            spec_allow = self
+                                .speculative_decoder
+                                .as_ref()
+                                .map(|d| {
+                                    d.total_drafted == 0
+                                        || d.acceptance_rate() >= d.min_acceptance_rate
+                                })
+                                .unwrap_or(false);
+                            continue;
+                        }
+                    }
                 }
             }
 
@@ -837,6 +1010,27 @@ impl LlmInference {
         self.sampler = VortexSampler::new(new_config.seed, &new_config.sampling);
         self.simd = build_info::simd_summary();
         self.device = device;
+
+        // Rebuild speculative fields (drafter tables are not model-dependent,
+        // but enable/params/seed follow the live performance config).
+        let perf = crate::vortex_config::VortexConfig::load().performance;
+        self.speculative_enabled = perf.speculative_enabled;
+        self.speculative_decoder = if perf.speculative_enabled {
+            let drafter = crate::speculative::NGramDrafter::new(
+                perf.ngram_order,
+                32000,
+                new_config.sampling.temperature.unwrap_or(0.8) as f32,
+                new_config.seed,
+            );
+            Some(crate::speculative::SpeculativeDecoder::new_seeded(
+                Box::new(drafter),
+                perf.max_draft_tokens,
+                perf.min_acceptance_rate,
+                new_config.seed ^ 0x5EED_1A7E,
+            ))
+        } else {
+            None
+        };
 
         Ok(())
     }

@@ -21,8 +21,12 @@
 //!
 //! Ownership: WS connections own one session for their lifetime; stateless
 //! HTTP endpoints use an ephemeral session per request. Residual sharing
-//! (documented, harmless): n-gram drafter tables (verifier is exact),
-//! the hash-validated prefix-KV cache, and the global cancel flag.
+//! (documented): n-gram drafter tables live on the engine's single
+//! `SpeculativeDecoder` (shared across sessions — see
+//! `speculative_enabled`); verification is exact (Levi / argmax), so
+//! shared draft tables cannot skew a session's output distribution.
+//! Also shared: the hash-validated prefix-KV cache and the global cancel
+//! flag.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 

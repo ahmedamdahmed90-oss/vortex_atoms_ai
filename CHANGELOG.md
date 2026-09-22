@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Probabilistic speculative acceptance (2026-09-22)
+- Speculative decoding no longer gated on greedy-only: sampling modes
+  (temperature / top-k / top-p) use Levi et al. probabilistic acceptance —
+  accept a draft with `min(1, p[x]/q[x])`, on rejection sample the residual
+  `normalize(max(0, p-q))`. Output distribution matches the target sampler
+  (repeat penalty included via `p`). Greedy stays argmax-exact.
+- `VortexSampler::target_probs_into` / `target_probs_logits`: expose the
+  full target distribution `p` (penalty → temperature → top-k → top-p →
+  softmax, renormalized) that `sample` would draw from.
+- `SpeculativeDrafter::draft_with_probs`: drafters return proposal `q`
+  with each token (default: point-mass `q=1`); `NGramDrafter` returns its
+  normalized candidate softmax.
+- Decoder-owned xorshift RNG for Levi accept/residual draws
+  (`SpeculativeDecoder::new_seeded`); `accept_levi` / `accept_greedy`
+  helpers + pure `levi_accept_prob` / `sample_residual` / `levi_step`.
+- **KV-safe incremental verify**: draft verification forwards only accepted
+  drafts (append-only candle KV); never re-forwards from position 0 (the
+  old `verify_drafted_tokens` latent bug). `forwards == committed.len()`
+  invariant keeps `pos` aligned with the normal decode cadence.
+- **Single drafter instance**: removed the divergent `ngram_drafter` twin
+  field; the decoder owns the only tables. Drafter trains on
+  history + system + prompt at the start of every generate (was dead code).
+- `min_acceptance_rate` now honored (was hardcoded `0.5`); speculation
+  pauses below the threshold and resumes when the rate recovers.
+- Streaming path gains the same speculative branch (each committed token
+  is emitted as a `StreamEvent::Token`).
+- `reload_with_config` rebuilds speculative fields from live performance
+  config (previously left stale).
+- Scope docs updated (`speculative.rs`, `vortex_config.rs`,
+  `inference_session.rs`); ENGINEERING_REVIEW future-work #3 done.
+
 ## [0.2.2] - 2026-09-21
 
 ### IVF approximate retrieval (2026-09-21)

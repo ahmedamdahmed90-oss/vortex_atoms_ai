@@ -43,6 +43,50 @@ pub fn apply_repeat_penalty_window(
     }
 }
 
+/// Zero every mass outside the top-`k` entries (candle `Sampling::TopK`
+/// semantics: multinomial over the k largest only).
+fn clamp_top_k(probs: &mut [f32], k: usize) {
+    if k == 0 || k >= probs.len() {
+        return;
+    }
+    let mut idx: Vec<usize> = (0..probs.len()).collect();
+    idx.select_nth_unstable_by(k, |&a, &b| probs[b].total_cmp(&probs[a]));
+    for (i, &j) in idx.iter().enumerate() {
+        if i >= k {
+            probs[j] = 0.0;
+        }
+    }
+}
+
+/// Zero every mass outside the nucleus (candle `Sampling::TopP`: walk
+/// descending probabilities, keep the token that crosses `p`, drop the rest).
+fn clamp_top_p(probs: &mut [f32], p: f32) {
+    if p <= 0.0 || p >= 1.0 {
+        return;
+    }
+    let mut idx: Vec<usize> = (0..probs.len()).collect();
+    idx.sort_by(|&a, &b| probs[b].total_cmp(&probs[a]));
+    let mut cumsum = 0.0f32;
+    for &i in &idx {
+        if cumsum >= p {
+            probs[i] = 0.0;
+        } else {
+            cumsum += probs[i];
+        }
+    }
+}
+
+/// Renormalize in place so the distribution sums to 1 (no-op if already
+/// ~1 or if everything collapsed — caller handles the degenerate case).
+fn renorm_in_place(probs: &mut [f32]) {
+    let sum: f32 = probs.iter().sum();
+    if sum.is_finite() && sum > 0.0 {
+        for v in probs.iter_mut() {
+            *v /= sum;
+        }
+    }
+}
+
 /// Wrapper around candle-transformers LogitsProcessor with VortexAtoms integration.
 pub struct VortexSampler {
     inner: LogitsProcessor,
@@ -75,6 +119,14 @@ impl VortexSampler {
         self.greedy
     }
 
+    /// Copy `logits` into `out` with the repeat-penalty window applied
+    /// (same transform `sample` uses before argmax / softmax).
+    pub fn penalized_logits_into(&self, logits: &[f32], generated: &[u32], out: &mut Vec<f32>) {
+        out.clear();
+        out.extend_from_slice(logits);
+        apply_repeat_penalty_window(out, generated, self.repeat_penalty, self.repeat_last_n);
+    }
+
     fn make_sampling(config: &SamplingConfig) -> Sampling {
         let temp = config.temperature.unwrap_or(0.8);
         // A temperature at (or below) 1e-7 means greedy: map it to candle's
@@ -105,6 +157,84 @@ impl VortexSampler {
                 }
             }
         }
+    }
+
+    /// Fill `out` with the full target distribution `p` that `sample` /
+    /// `sample_with_scratch` would draw from (repeat penalty, temperature,
+    /// top-k, top-p — then renormalized to sum to 1).
+    ///
+    /// Used by probabilistic speculative acceptance (Levi et al.): the
+    /// verifier needs `p` at every draft position, not just one draw.
+    /// Greedy mode returns a one-hot at the penalized argmax so the Levi
+    /// rule reduces to bit-identical argmax accept/reject.
+    pub fn target_probs_into(
+        &self,
+        logits: &Tensor,
+        generated: &[u32],
+        out: &mut Vec<f32>,
+    ) -> Result<()> {
+        let tmp = logits.to_vec1::<f32>()?;
+        self.target_probs_logits(&tmp, generated, out)
+    }
+
+    /// Slice form of [`Self::target_probs_into`] (no Tensor round-trip).
+    pub fn target_probs_logits(
+        &self,
+        logits: &[f32],
+        generated: &[u32],
+        out: &mut Vec<f32>,
+    ) -> Result<()> {
+        out.clear();
+        out.extend_from_slice(logits);
+        apply_repeat_penalty_window(out, generated, self.repeat_penalty, self.repeat_last_n);
+
+        if self.greedy {
+            let best = argmax_index(out);
+            out.iter_mut().for_each(|v| *v = 0.0);
+            out[best] = 1.0;
+            return Ok(());
+        }
+
+        let temp = self.config.temperature.unwrap_or(0.8).max(1e-7) as f32;
+        let pre_max = out.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        if !pre_max.is_finite() {
+            out.iter_mut().for_each(|v| *v = 0.0);
+            if let Some(first) = out.first_mut() {
+                *first = 1.0;
+            }
+            return Ok(());
+        }
+        let mut sum = 0.0f32;
+        for v in out.iter_mut() {
+            *v = ((*v - pre_max) / temp).exp();
+            sum += *v;
+        }
+        if !(sum.is_finite() && sum > 0.0) {
+            out.iter_mut().for_each(|v| *v = 0.0);
+            out[0] = 1.0;
+            return Ok(());
+        }
+        for v in out.iter_mut() {
+            *v /= sum;
+        }
+
+        match (self.config.top_k, self.config.top_p) {
+            (Some(k), Some(p)) => {
+                clamp_top_k(out, k);
+                clamp_top_p(out, p as f32);
+                renorm_in_place(out);
+            }
+            (Some(k), None) => {
+                clamp_top_k(out, k);
+                renorm_in_place(out);
+            }
+            (None, Some(p)) => {
+                clamp_top_p(out, p as f32);
+                renorm_in_place(out);
+            }
+            (None, None) => {}
+        }
+        Ok(())
     }
 
     /// Sample with caller-provided scratch (1.2: reuse logits Vec, no per-token alloc).

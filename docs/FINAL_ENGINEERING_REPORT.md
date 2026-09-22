@@ -102,11 +102,13 @@ eviction ties nondeterministic (valid victim either way).
 - Delimited RAG context lengthens prompts slightly (security > tokens).
 - `clear_history` on generate removes global "memory" some may have leaned
   on — but it was cross-client leakage, not a feature.
-- Speculative decoding now greedy-only (correctness > coverage until a
-  probabilistic acceptance rule lands).
+- Speculative decoding supports sampling modes via probabilistic (Levi)
+  acceptance when `performance.speculative_enabled` (default off);
+  greedy stays argmax-exact. See CHANGELOG `[Unreleased]`.
 
 ## 14. Recommended future work
 
-Per-session engines; GB-scale atom experiment; probabilistic speculative
-acceptance; ANN behind `VectorIndex`; sampler scratch `mem::take` with
-tokens/sec proof. Details in ENGINEERING_REVIEW.md + BENCHMARKS.md.
+Per-session engines; GB-scale atom experiment; ANN behind `VectorIndex`
+(**done** — IVF opt-in); sampler scratch `mem::take` with tokens/sec
+proof. Probabilistic speculative acceptance **done** (Levi). Details in
+ENGINEERING_REVIEW.md + BENCHMARKS.md.

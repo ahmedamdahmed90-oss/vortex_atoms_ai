@@ -66,6 +66,8 @@
 
 1. Per-session inference engines (fixes limitation 1).
 2. GB-scale atom experiment on provisioned hardware (BENCHMARKS.md §design).
-3. Probabilistic speculative acceptance for sampling modes (scope note in speculative.rs).
-4. ANN index behind `VectorIndex` when N warrants it.
+3. ~~Probabilistic speculative acceptance for sampling modes~~ — **done**
+   (Levi accept + residual sampling; see CHANGELOG `[Unreleased]`).
+4. ANN index behind `VectorIndex` when N warrants it — **done** (IVF in
+   `llm_embed.rs`, opt-in via `VectorStore::trained_ivf`).
 5. `sampler` scratch `mem::take` optimization with tokens/sec proof.

@@ -53,16 +53,23 @@ pub struct PerformanceConfig {
     /// KV cache dtype: "f16" (default, memory-efficient) or "f32" (precision).
     #[serde(default = "default_kv_cache_dtype")]
     pub kv_cache_dtype: String,
-    /// Speculative decoding: enable n-gram drafter.
-    /// Greedy-exact only: the verifier accepts drafts by argmax, so the
-    /// runtime automatically skips speculation under temperature/top-k/top-p
-    /// sampling (output distribution is then bit-identical to no speculation).
+    /// Speculative decoding: enable n-gram drafter + verifier.
+    /// - Greedy (ArgMax): accept drafts on argmax match — bit-identical to
+    ///   non-speculative greedy.
+    /// - Sampling modes (temperature/top-k/top-p): probabilistic speculative
+    ///   acceptance (Levi et al.) — accept with `min(1, p/q)`, on rejection
+    ///   sample the residual `normalize(max(0, p-q))`. Output distribution
+    ///   matches the target sampler (repeat penalty included via `p`).
+    ///
+    /// Default off: with the flag off, generation never enters the
+    /// speculative path.
     #[serde(default)]
     pub speculative_enabled: bool,
     /// Maximum tokens to draft per speculative step.
     #[serde(default = "default_max_draft_tokens")]
     pub max_draft_tokens: usize,
-    /// Minimum acceptance rate to continue speculative decoding.
+    /// Minimum acceptance rate before speculation pauses (falls back to
+    /// normal sampling until the rate recovers).
     #[serde(default = "default_min_acceptance_rate")]
     pub min_acceptance_rate: f32,
     /// N-gram order for drafter.
