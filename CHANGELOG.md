@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Per-session state isolation (2026-09-22)
+- **All generate paths now fork an ephemeral `InferenceSession`** —
+  IKC (`kernel_03` streaming + non-streaming), `/v1/tools/call`,
+  `/v1/batch`, and `AgentLoop` previously ran bare-engine
+  `set_temperature` + `generate`, leaking temperature and history into
+  unrelated requests (limitation 1's live leak). They now use
+  `fork_session` + `generate_with_session` / `generate_streaming_with_session`
+  / `batch_generate_with_session`.
+- **Session-scoped cancel flag**: `InferenceSession` owns an
+  `Arc<AtomicBool>`; `*_with_session` installs it on the engine for the
+  call only, then restores the engine-resident flag. Cancelling one
+  session never bleeds into the engine default or another session.
+  Bare-engine callers (CLI, backend trait) still use `engine.cancel()`.
+- `InferenceSession::clear_history` for batch/agent steps that must not
+  observe prior turns.
+- Scope docs updated (`inference_session.rs`, `ApiState` concurrency
+  model); ENGINEERING_REVIEW limitation 1 marked **done** for state
+  isolation (engine *pool* for concurrent execution remains future work).
+- 2 new session tests (cancel isolation, clear_history isolation).
+
 ### Probabilistic speculative acceptance (2026-09-22)
 - Speculative decoding no longer gated on greedy-only: sampling modes
   (temperature / top-k / top-p) use Levi et al. probabilistic acceptance —

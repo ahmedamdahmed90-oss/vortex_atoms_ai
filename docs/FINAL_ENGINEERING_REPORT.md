@@ -93,9 +93,11 @@ scope (inference/RSS/GB-scale need a provisioned bench machine).
 
 ## 12. Remaining limitations
 
-WS/IKC streaming share one engine (no per-session partition); no ANN;
-inference/RSS unmeasured here; ARCHITECTURE.md IKC sketch predates code;
-eviction ties nondeterministic (valid victim either way).
+WS/IKC/tool/batch/agent paths are session-isolated (history, sampler,
+temperature, cancel); weights/KV remain one shared serial engine (pool =
+future work). No ANN gap (IVF opt-in done); inference/RSS unmeasured here;
+ARCHITECTURE.md IKC sketch predates code; eviction ties nondeterministic
+(valid victim either way).
 
 ## 13. Known trade-offs
 
@@ -108,7 +110,8 @@ eviction ties nondeterministic (valid victim either way).
 
 ## 14. Recommended future work
 
-Per-session engines; GB-scale atom experiment; ANN behind `VectorIndex`
-(**done** — IVF opt-in); sampler scratch `mem::take` with tokens/sec
-proof. Probabilistic speculative acceptance **done** (Levi). Details in
-ENGINEERING_REVIEW.md + BENCHMARKS.md.
+Per-session engine **pool** for concurrent execution (state isolation
+**done** — session partition everywhere); GB-scale atom experiment; ANN
+behind `VectorIndex` (**done** — IVF opt-in); sampler scratch `mem::take`
+with tokens/sec proof. Probabilistic speculative acceptance **done**
+(Levi). Details in ENGINEERING_REVIEW.md + BENCHMARKS.md.

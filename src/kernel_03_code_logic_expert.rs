@@ -84,10 +84,19 @@ pub async fn run(
                             let stream_handle = std::thread::spawn(move || {
                                 let mut eng =
                                     tokio::runtime::Handle::current().block_on(engine.lock());
+                                // Session isolation (limitation 1): temperature
+                                // and history stay on an ephemeral session —
+                                // never the shared engine sampler/history.
+                                let mut session = eng.fork_session();
                                 if let Some(temp) = temperature {
-                                    eng.set_temperature(temp);
+                                    session.set_temperature(temp);
                                 }
-                                let _ = eng.generate_streaming(&prompt, max_tokens, tx);
+                                let _ = eng.generate_streaming_with_session(
+                                    &prompt,
+                                    max_tokens,
+                                    tx,
+                                    &mut session,
+                                );
                             });
 
                             let consumer = tokio::runtime::Handle::current().spawn(async move {
@@ -148,11 +157,14 @@ pub async fn run(
                             Ok(())
                         } else {
                             let mut eng = tokio::runtime::Handle::current().block_on(engine.lock());
+                            // Session isolation (limitation 1): same discipline
+                            // as the streaming path — ephemeral session only.
+                            let mut session = eng.fork_session();
                             if let Some(temp) = temperature {
-                                eng.set_temperature(temp);
+                                session.set_temperature(temp);
                             }
                             let gen_start = std::time::Instant::now();
-                            match eng.generate(&prompt, max_tokens) {
+                            match eng.generate_with_session(&prompt, max_tokens, &mut session) {
                                 Ok(output) => {
                                     let mut state = tokio::runtime::Handle::current()
                                         .block_on(shared_clone.write());

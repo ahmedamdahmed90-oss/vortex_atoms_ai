@@ -204,12 +204,13 @@ impl LlmInference {
         crate::inference_session::InferenceSession::new(self.config.seed, &self.config.sampling)
     }
 
-    /// Generate with a session swapped in: the session's history and sampler
-    /// replace the engine-resident ones for the call, then swap back —
-    /// including on `Err` (result is captured first). Callers must hold the
-    /// engine exclusively; all do (the write guard spans blocking compute).
-    /// Weights, KV/prefix caches, and the cancel flag stay shared by design:
-    /// KV is rebuilt per request and the prefix cache is hash-validated.
+    /// Generate with a session swapped in: the session's history, sampler,
+    /// and cancel flag replace the engine-resident ones for the call, then
+    /// swap back — including on `Err` (result is captured first). Callers
+    /// must hold the engine exclusively; all do (the write guard spans
+    /// blocking compute). Weights and KV/prefix caches stay shared by
+    /// design: KV is rebuilt per request and the prefix cache is
+    /// hash-validated. Session cancel never touches the engine default flag.
     pub fn generate_with_session(
         &mut self,
         user_message: &str,
@@ -218,7 +219,10 @@ impl LlmInference {
     ) -> Result<String> {
         std::mem::swap(&mut self.conversation_history, &mut session.history);
         std::mem::swap(&mut self.sampler, &mut session.sampler);
+        let engine_flag =
+            std::mem::replace(&mut self.cancel_flag, Arc::clone(&session.cancel_flag));
         let out = self.generate(user_message, max_tokens);
+        self.cancel_flag = engine_flag;
         std::mem::swap(&mut self.conversation_history, &mut session.history);
         std::mem::swap(&mut self.sampler, &mut session.sampler);
         out
@@ -234,10 +238,30 @@ impl LlmInference {
     ) -> Result<()> {
         std::mem::swap(&mut self.conversation_history, &mut session.history);
         std::mem::swap(&mut self.sampler, &mut session.sampler);
+        let engine_flag =
+            std::mem::replace(&mut self.cancel_flag, Arc::clone(&session.cancel_flag));
         let out = self.generate_streaming(user_message, max_tokens, tx);
+        self.cancel_flag = engine_flag;
         std::mem::swap(&mut self.conversation_history, &mut session.history);
         std::mem::swap(&mut self.sampler, &mut session.sampler);
         out
+    }
+
+    /// Session-isolated batch: each prompt runs on the session with a
+    /// cleared session history so entries cannot observe each other (or
+    /// pollute engine-resident history).
+    pub fn batch_generate_with_session(
+        &mut self,
+        prompts: &[&str],
+        max_tokens: Option<usize>,
+        session: &mut crate::inference_session::InferenceSession,
+    ) -> Result<Vec<String>> {
+        let mut results = Vec::with_capacity(prompts.len());
+        for prompt in prompts {
+            session.clear_history();
+            results.push(self.generate_with_session(prompt, max_tokens, session)?);
+        }
+        Ok(results)
     }
 
     pub fn append_to_history(&mut self, role: MessageRole, content: &str) {

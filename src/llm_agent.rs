@@ -115,10 +115,17 @@ impl AgentLoop {
             self.step_counter.store(step_num + 1, Ordering::Relaxed);
             let step_start = Instant::now();
 
-            engine.clear_history();
+            // Session isolation: history/sampler/cancel stay on this ephemeral
+            // session — never the engine-resident fields (which other clients
+            // may be swapping in under the serial lock).
+            let mut session = engine.fork_session();
 
             let full_prompt = format!("{}\n\n{}", system_context, current_context);
-            let response = engine.generate(&full_prompt, Some(self.max_tokens_per_step))?;
+            let response = engine.generate_with_session(
+                &full_prompt,
+                Some(self.max_tokens_per_step),
+                &mut session,
+            )?;
 
             let tool_calls = parse_tool_calls(&response);
 
@@ -238,7 +245,8 @@ impl AgentLoop {
             self.step_counter.store(step_num + 1, Ordering::Relaxed);
             let step_start = Instant::now();
 
-            engine.clear_history();
+            // Session isolation (same as run): ephemeral session per step.
+            let mut session = engine.fork_session();
             let full_prompt = format!("{}\n\n{}", system_context, current_context);
 
             let _ = tx.blocking_send(StreamEvent::Token {
@@ -248,9 +256,18 @@ impl AgentLoop {
             });
 
             let response_tx = tx.clone();
-            engine.generate_streaming(&full_prompt, Some(self.max_tokens_per_step), response_tx)?;
+            engine.generate_streaming_with_session(
+                &full_prompt,
+                Some(self.max_tokens_per_step),
+                response_tx,
+                &mut session,
+            )?;
 
-            let response = engine.generate(&full_prompt, Some(self.max_tokens_per_step))?;
+            let response = engine.generate_with_session(
+                &full_prompt,
+                Some(self.max_tokens_per_step),
+                &mut session,
+            )?;
             let tool_calls = parse_tool_calls(&response);
 
             if tool_calls.is_empty() {

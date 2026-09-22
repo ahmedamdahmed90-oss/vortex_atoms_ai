@@ -49,14 +49,19 @@ pub const MAX_API_MAX_TOKENS: usize = 512;
 ///   on bare engine state. HTTP endpoints fork an ephemeral session per
 ///   request (fresh history + private sampler: temperature sticks to the
 ///   request only); each `/ws` connection owns one session for its lifetime
-///   (own history across its messages, own temperature). Weights stay shared
-///   (immutable tensors) and KV is rebuilt per request under the serial lock.
+///   (own history across its messages, own temperature); IKC / tool / batch
+///   paths also fork an ephemeral session per call (no temperature or
+///   history leak into later requests). Weights stay shared (immutable
+///   tensors) and KV is rebuilt per request under the serial lock.
 /// - **Observability**: `/v1/health` uses `try_read` and never queues behind
 ///   a running generation.
 /// - **Residual sharing** (documented, harmless): n-gram drafter tables
-///   (the argmax verifier is exact), the hash-validated prefix-KV cache,
-///   the global cancel flag, and the 5-kernel IKC path which keeps the
-///   global engine (system-level workers, not user sessions).
+///   (the argmax/Levi verifier is exact), the hash-validated prefix-KV
+///   cache, and the engine-resident cancel flag used only by bare-engine
+///   callers (CLI, backend trait) — session paths install a per-session
+///   cancel flag for the duration of the call. Weights remain one shared
+///   serial engine (Qwen2 weights are not `Clone`; full per-session
+///   engines need a pool — future work #1).
 pub struct ApiState {
     pub engine: Arc<RwLock<LlmInference>>,
     pub tool_executor: Arc<dyn ToolExecutor>,
@@ -907,10 +912,13 @@ async fn handle_tool_call(
         // below runs without holding any ApiState guard.
         let engine_arc = state.read().await.engine.clone();
         let mut engine = engine_arc.write().await;
-        // Stage 9 session isolation (see handle_generate): stateless request.
-        engine.clear_history();
+        // Stage 9 session isolation (see handle_generate): ephemeral session
+        // so history/sampler never touch engine-resident state.
+        let mut session = engine.fork_session();
         let max_tokens = clamp_max_tokens(req.max_tokens);
-        match tokio::task::block_in_place(|| engine.generate(&full_prompt, Some(max_tokens))) {
+        match tokio::task::block_in_place(|| {
+            engine.generate_with_session(&full_prompt, Some(max_tokens), &mut session)
+        }) {
             Ok(text) => text,
             Err(e) => {
                 return (
@@ -1211,13 +1219,16 @@ async fn handle_batch(
         (guard.engine.clone(), augmented)
     };
     let mut engine = engine_arc.write().await;
-    // Stage 9 session isolation (see handle_generate): batch items must not
-    // observe each other's history through the shared engine.
-    engine.clear_history();
+    // Stage 9 session isolation (see handle_generate): each batch runs on
+    // an ephemeral session with cleared history — entries cannot observe
+    // each other or engine-resident state.
+    let mut session = engine.fork_session();
     let prompts_refs: Vec<&str> = augmented.iter().map(|s| s.as_str()).collect();
     let max_tokens = clamp_max_tokens(req.max_tokens);
 
-    match tokio::task::block_in_place(|| engine.batch_generate(&prompts_refs, Some(max_tokens))) {
+    match tokio::task::block_in_place(|| {
+        engine.batch_generate_with_session(&prompts_refs, Some(max_tokens), &mut session)
+    }) {
         Ok(results) => {
             let total: usize = results.iter().map(|r| r.len()).sum();
             (

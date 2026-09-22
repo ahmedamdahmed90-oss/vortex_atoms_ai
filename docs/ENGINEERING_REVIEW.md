@@ -40,7 +40,7 @@
 | Flaky `test_five_kernel_matrix_submit_ui_input` | PRE_EXISTING → untouched (already `#[ignore]`) |
 | Firefox E2E flakes | PRE_EXISTING → untouched (KNOWN_ISSUES) |
 | `cargo audit` upstream warnings | PRE_EXISTING → untouched (continue-on-error) |
-| `/ws` + IKC per-session partitioning | CONFIRMED limitation → documented, deferred (needs per-session engines) |
+| `/ws` + IKC per-session partitioning | ~~CONFIRMED limitation~~ → **done** (session-ify: IKC/tool/batch/agent fork ephemeral sessions; per-session cancel flag). Weights stay one shared serial engine (pool = future work #1). |
 | GB-scale atom memory experiment | Out of scope for this box → designed in BENCHMARKS.md, not executed |
 
 ## Before / after metrics
@@ -56,15 +56,20 @@
 
 ## Remaining limitations / trade-offs
 
-1. WS/IKC streaming sessions share one engine (documented; needs architecture).
-2. ANN retrieval not implemented (correct call at current N; seam ready).
+1. ~~WS/IKC streaming sessions share one engine~~ — **state isolation done**
+   (history/sampler/cancel are per-session on IKC, tool, batch, agent, WS,
+   HTTP). Weights/KV remain one shared serial engine (pool = future work #1).
+2. ~~ANN retrieval not implemented~~ — **done** (IVF opt-in via
+   `VectorStore::trained_ivf`; see future work #4).
 3. Inference/memory numbers unmeasured here (no model on box; harness exists).
 4. ARCHITECTURE.md §IKC sketch predates current code (pre-existing staleness, noted, not rewritten in this pass).
 5. Eviction ties resolve nondeterministically (valid victim either way).
 
 ## Recommended future work
 
-1. Per-session inference engines (fixes limitation 1).
+1. ~~Per-session inference engines~~ — **state isolation done** (session
+   partition on every generate path + per-session cancel). Remaining:
+   engine *pool* for concurrent execution (weights are not `Clone`).
 2. GB-scale atom experiment on provisioned hardware (BENCHMARKS.md §design).
 3. ~~Probabilistic speculative acceptance for sampling modes~~ — **done**
    (Levi accept + residual sampling; see CHANGELOG `[Unreleased]`).
