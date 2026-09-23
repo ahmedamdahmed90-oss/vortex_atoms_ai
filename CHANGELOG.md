@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-23
+
+### Health endpoint versioning (2026-09-23)
+- **`/v1/health` reports `version`, `build_ts`, `git_sha`** from
+  `build.rs`-captured compile-time metadata (`src/build_info.rs`).
+- Docker build copies `build.rs` so `BUILD_TS`/`GIT_SHA` resolve inside
+  the container (previously missing → empty/zeroed fields).
+
+### CI & tooling (issues #5–#6)
+- **Pester 6 tests** for `check_repo_refs` (`tools/tests/check_repo_refs.tests.ps1`,
+  26 tests) covering ref freshness, URL shape, and fixture edge cases.
+- **API reference examples** with curl/PowerShell/env-token patterns
+  (issue #5).
+- **Arabic translation** of `REPO_STATUS.md` → `docs/REPO_STATUS_AR.md`
+  (issue #4).
+
+### Firefox e2e stability (issues #1–#3)
+- **Real bug fix**: `ChatSidebar` ignored `isOpen` — the aside stayed
+  `right-0 w-80` on mobile and covered the RTL toggle; clicks hit the
+  conversations panel. Closed state now uses `translate-x-full` +
+  `invisible` (`lg` always visible).
+- Theme dropdown waits for `animate-in` commit before asserting `dark`.
+- Focus test waits for Firefox to commit focus after `Tab`
+  (`toBeFocused` + poll).
+- Verified **30/30** on Firefox (`--repeat-each=10`); CI `35859713134`.
+
 ## [0.2.3] - 2026-09-23
 
 ### Sampler scratch `mem::take` (2026-09-23)
