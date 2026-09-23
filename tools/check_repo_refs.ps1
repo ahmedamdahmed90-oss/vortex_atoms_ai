@@ -36,7 +36,13 @@ if ($gitSha -ne $expectedSha) {
         Write-Host "⚠️  Shallow clone: HEAD SHA differs from facts.json (expected in CI)" -ForegroundColor Yellow
         Write-Host "   HEAD: $gitSha | facts.json: $expectedSha" -ForegroundColor Yellow
     } else {
-        $factsShaValid = (git cat-file -t $expectedSha 2>$null) -eq "commit"
+        $factsShaValid = $false
+        try {
+            $catOut = git cat-file -t $expectedSha 2>$null
+            $factsShaValid = ($LASTEXITCODE -eq 0) -and ("$catOut".Trim() -eq "commit")
+        } catch {
+            $factsShaValid = $false
+        }
         if ($factsShaValid) {
             Write-Host "⚠️  HEAD SHA differs from facts.json (valid commit in history)" -ForegroundColor Yellow
         } else {

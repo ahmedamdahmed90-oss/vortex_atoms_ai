@@ -192,9 +192,26 @@ jobs:
       - name: Check repo refs
         run: pwsh -ExecutionPolicy Bypass -File tools/check_repo_refs.ps1
 
+      - name: Install Pester 5+
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.0.0' })) {
+            Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.0.0 -SkipPublisherCheck -AllowClobber
+          }
+          Get-Module -ListAvailable Pester | Select-Object Name, Version
+
+      - name: Run check_repo_refs Pester tests
+        shell: pwsh
+        run: |
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tools/tests'
+          $cfg.Run.Exit = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $cfg
+
   # ========================================
   # Docker Build
-  # ========================================
+  # =================================#######
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
