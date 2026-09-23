@@ -46,7 +46,8 @@ async fn main() {
         return;
     }
 
-    let store = StateStore::open(&learner_state_path()).unwrap();
+    let store = StateStore::open(&learner_state_path())
+        .expect("vortex_learn: cannot open learner state dir (check disk/permissions)");
     let _pipeline = AcquisitionPipeline::new(store.clone());
     let _scheduler = LearnerScheduler::new(config.schedule.clone());
 
@@ -220,7 +221,8 @@ fn run_report(_config: &LearnerConfig) {
     let report_dir = std::path::PathBuf::from("./learner-reports");
     let gen = ReportGenerator::new(report_dir, budget);
     let run_log_path = std::path::PathBuf::from("./learner-runs.jsonl");
-    let run_log = vortex_atoms_ai::learner::telemetry::PersistentRunLog::new(run_log_path).unwrap();
+    let run_log = vortex_atoms_ai::learner::telemetry::PersistentRunLog::new(run_log_path)
+        .expect("vortex_learn: cannot create ./learner-runs.jsonl (check disk/permissions)");
     let metrics = vortex_atoms_ai::learner::telemetry::LearnerMetrics {
         total_runs: 0,
         total_chunks_indexed: 0,

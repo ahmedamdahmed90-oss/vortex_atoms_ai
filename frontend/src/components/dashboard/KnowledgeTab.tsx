@@ -7,7 +7,7 @@ import { Modal } from '../ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 
 export function KnowledgeTab() {
-  const { knowledgeChunks, searchResults, searchKnowledge, importKnowledge } = useDashboard();
+  const { knowledgeChunks, searchResults, searchKnowledge, importKnowledge, refreshAll } = useDashboard();
   const { addToast: _addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
@@ -53,7 +53,7 @@ export function KnowledgeTab() {
               <div className="grid grid-cols-2 gap-4"><div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800"><p className="text-sm text-gray-500 dark:text-gray-400">الحالة</p><p className="font-medium text-gray-900 dark:text-gray-100">جاهزة</p></div><div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800"><p className="text-sm text-gray-500 dark:text-gray-400">آخر تحديث</p><p className="font-medium text-gray-900 dark:text-gray-100">الآن</p></div></div>
             </div>
           </CardContent>
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" leftIcon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}>تحديث</Button></div>
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={() => { void refreshAll(); }} leftIcon={<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}>تحديث</Button></div>
         </Card>
       </div>
 

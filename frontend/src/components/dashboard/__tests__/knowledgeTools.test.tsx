@@ -13,6 +13,7 @@ const hoisted = vi.hoisted(() => ({
     tools: null as Array<{ name: string; description: string }> | null,
     executeTool: vi.fn(),
     fetchTools: vi.fn(),
+    refreshAll: vi.fn(),
   },
 }))
 
@@ -108,8 +109,7 @@ describe('KnowledgeTab', () => {
     spy.mockRestore()
   })
 
-  it('closes import modal via cancel and X', () => {
-    renderWithToast(<KnowledgeTab />)
+  it('closes import modal via cancel and X', () => {    renderWithToast(<KnowledgeTab />)
 
     fireEvent.click(screen.getByText('استيراد معرفة'))
     expect(screen.getByText('استيراد معرفة جديدة')).toBeInTheDocument()
@@ -119,6 +119,13 @@ describe('KnowledgeTab', () => {
     fireEvent.click(screen.getByText('استيراد معرفة'))
     fireEvent.click(screen.getByLabelText('إغلاق'))
     expect(screen.queryByText('استيراد معرفة جديدة')).not.toBeInTheDocument()
+  })
+
+  it('refresh button re-fetches dashboard stats', () => {
+    hoisted.dash.refreshAll.mockResolvedValue(undefined)
+    renderWithToast(<KnowledgeTab />)
+    fireEvent.click(screen.getByRole('button', { name: 'تحديث' }))
+    expect(hoisted.dash.refreshAll).toHaveBeenCalledTimes(1)
   })
 })
 

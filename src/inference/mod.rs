@@ -86,9 +86,11 @@ pub struct GgmlBackend {
 #[cfg(feature = "ggml")]
 impl InferenceBackend for GgmlBackend {
     fn load(_config: &LlmConfig) -> Result<Self> {
-        // TODO: wire llama_cpp_2::LlamaModel::load_from_file + context
-        // For now the stub reports not-yet-wired so the gate can stay green
-        // and the A/B bench can run against candle while ggml matures.
+        // NOTE (PERF-02, hardware-blocked): wire
+        // llama_cpp_2::LlamaModel::load_from_file + context here once a box
+        // with CMake/MSVC + disk can run the ggml A/B bench (gate: ≥1.5×
+        // tok/s vs candle). Until then the stub reports not-yet-wired so
+        // the gate stays green and the bench runs against candle.
         Err(crate::error::VortexAtomsError::InvalidConfig(
             "ggml backend not yet wired: build with --features ggml and complete src/inference/ggml.rs".to_string(),
         ))

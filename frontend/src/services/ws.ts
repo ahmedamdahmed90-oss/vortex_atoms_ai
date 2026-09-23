@@ -120,7 +120,7 @@ export class WebSocketService {
       this.maxReconnectDelay
     );
 
-    console.log(`[WS] Scheduling reconnect attempt ${this.reconnectAttempts} in ${Math.round(delay)}ms`);
+    console.debug(`[WS] Scheduling reconnect attempt ${this.reconnectAttempts} in ${Math.round(delay)}ms`);
 
     setTimeout(() => {
       if (!this.isIntentionalClose) {

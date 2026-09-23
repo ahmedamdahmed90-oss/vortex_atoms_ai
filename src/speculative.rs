@@ -113,7 +113,7 @@ impl NGramDrafter {
                 .iter()
                 .map(|(&tok, &count)| (tok, count as f32))
                 .collect();
-            candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            candidates.sort_by(|a, b| b.1.total_cmp(&a.1));
             return candidates.into_iter().take(10).collect();
         }
 
@@ -123,7 +123,7 @@ impl NGramDrafter {
                 .iter()
                 .map(|(&tok, &count)| (tok, count as f32))
                 .collect();
-            candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            candidates.sort_by(|a, b| b.1.total_cmp(&a.1));
             return candidates;
         }
 
@@ -133,7 +133,7 @@ impl NGramDrafter {
             .iter()
             .map(|(&tok, &count)| (tok, count as f32))
             .collect();
-        candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        candidates.sort_by(|a, b| b.1.total_cmp(&a.1));
         candidates.into_iter().take(10).collect()
     }
 
@@ -548,6 +548,21 @@ mod tests {
             assert!(
                 sparse_prob_at(q, *tok) > 0.0,
                 "proposed token must have q>0"
+            );
+        }
+    }
+
+    #[test]
+    fn candidates_sorted_descending_by_count() {
+        let mut drafter = NGramDrafter::new(2, 32000, 1.0, 42);
+        drafter.train(&[1, 2, 3, 1, 2, 3, 1, 2, 4, 5]);
+        let cands = drafter.get_candidates(&[1, 2]);
+        assert!(!cands.is_empty());
+        for w in cands.windows(2) {
+            assert!(
+                w[0].1 >= w[1].1,
+                "candidates must be score-descending, got {:?}",
+                cands
             );
         }
     }

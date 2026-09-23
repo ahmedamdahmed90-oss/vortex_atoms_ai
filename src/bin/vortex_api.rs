@@ -29,8 +29,9 @@ fn main() {
             println!("[Vortex] vortex.json already exists. Remove it first to regenerate.");
         } else {
             let default = VortexConfig::default();
-            let json = serde_json::to_string_pretty(&default).unwrap();
-            std::fs::write(path, json).unwrap();
+            let json = serde_json::to_string_pretty(&default)
+                .expect("vortex_api: cannot serialize default config");
+            std::fs::write(path, json).expect("vortex_api: cannot write vortex.json");
             println!("[Vortex] Created default vortex.json");
         }
         return;

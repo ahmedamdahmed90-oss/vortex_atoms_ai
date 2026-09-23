@@ -246,6 +246,25 @@ describe('LogsTab', () => {
     expect(box).toBeChecked()
   })
 
+  it('export downloads the filtered logs as a text file', () => {
+    hoisted.dash.logs = ['[t] ERROR boom', '[t] INFO hi']
+    const createSpy = vi.fn(() => 'blob:mock-url')
+    const revokeSpy = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { value: createSpy, configurable: true })
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeSpy, configurable: true })
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      render(<ToastProvider><LogsTab /></ToastProvider>)
+      fireEvent.click(screen.getByRole('button', { name: 'تصدير' }))
+      expect(createSpy).toHaveBeenCalledTimes(1)
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+      expect(revokeSpy).toHaveBeenCalledWith('blob:mock-url')
+    } finally {
+      clickSpy.mockRestore()
+    }
+  })
+
   it('filters entries by logFilter across severities', () => {
     hoisted.dash.logs = ['[t] ERROR boom', '[t] WARN careful', '[t] INFO hi', '[t] debug trace']
     hoisted.dash.logFilter = 'error'

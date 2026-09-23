@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Full-project audit (2026-09-23)
+- **Panic-class removal**: `NGramDrafter::get_candidates` sorted with
+  `partial_cmp().unwrap()` — a NaN score would panic the draft path.
+  Now `total_cmp` (total order, no panic possible) + new test
+  `candidates_sorted_descending_by_count`. Verified safe inputs
+  (`u64→f32` counts can never be NaN); change is behavior-identical
+  on all real inputs.
+- **Dead UI buttons wired or delabeled**: LogsTab `تصدير` now downloads
+  the filtered logs (`vortex-logs.txt`); KnowledgeTab `تحديث` now calls
+  `refreshAll`; ChatSidebar `إعدادات الشات` is a static section label
+  (it heads the live sliders below) instead of a fake button.
+- **Startup diagnostics**: `vortex_learn`/`vortex_api`/`vortex_chat`
+  `--init-config` and state-open paths use `expect()` with actionable
+  messages instead of bare `unwrap()`.
+- **Console hygiene**: WS reconnect notice demoted to `console.debug`.
+- **Tracked stub**: ggml `load` TODO rewritten as `NOTE (PERF-02,
+  hardware-blocked)` pointing at the A/B gate.
+- Audit verdicts: `llm_inference` `last()/as_mut().unwrap()` all guarded
+  (empty-context early returns); `perf_topology` `get_unchecked` all
+  bounds-checked; `unwrap_or_*` fallbacks benign; unsafe limited to
+  mmap/Win32 idioms.
+- Environment: `target/debug/incremental` (8 GB) pruned after LNK1180
+  link failure on this box; disk back to ~10 GB free.
+
 ### Deterministic eviction (2026-09-23)
 - **Eviction victim selection is now deterministic on full ties**: both
   `KnowledgeOrchestratorState::enforce_loaded_capacity` and
