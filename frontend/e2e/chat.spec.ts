@@ -19,9 +19,16 @@ test.describe('Chat Interface', () => {
   })
 
   test('should toggle sidebar on mobile', async ({ page }) => {
+    // Root cause (#1): ChatSidebar ignored isOpen on mobile — fixed aside always
+    // covered the RTL toggle, so clicks hit the conversations panel instead.
+    await expect(page.getByPlaceholder('اكتب رسالتك هنا...')).toBeVisible()
     await page.setViewportSize({ width: 375, height: 667 })
     const sidebarToggle = page.getByLabel('فتح الشريط الجانبي')
-    await expect(sidebarToggle).toBeVisible()
+    await expect(sidebarToggle).toBeVisible({ timeout: 20000 })
+    await sidebarToggle.click()
+    await expect(
+      page.locator('aside').filter({ hasText: 'المحادثات' }).getByLabel('إغلاق الشريط الجانبي'),
+    ).toBeVisible()
   })
 
   test('should switch to dashboard', async ({ page }) => {
@@ -79,15 +86,21 @@ test.describe('Dashboard', () => {
 
 test.describe('Theme', () => {
   test('should toggle dark mode', async ({ page }) => {
+    // Root cause (#2): theme dropdown option could be clicked before the menu
+    // finished opening (animate-in); Firefox then hit the backdrop instead.
     await page.goto('/')
     const html = page.locator('html')
     await expect(page.getByRole('banner')).toBeVisible()
 
-    // Open the theme dropdown menu and select dark mode
-    await page.getByLabel('الوضع الداكن').click()
-    await page.getByRole('button', { name: 'داكن', exact: true }).click()
+    const themeTrigger = page.getByLabel('الوضع الداكن')
+    await expect(themeTrigger).toBeVisible()
+    await themeTrigger.click()
 
-    await expect(html).toHaveClass(/dark/)
+    const darkOption = page.getByRole('button', { name: 'داكن', exact: true })
+    await expect(darkOption).toBeVisible()
+    await darkOption.click()
+
+    await expect(html).toHaveClass(/dark/, { timeout: 20000 })
   })
 })
 
@@ -116,23 +129,33 @@ test.describe('Accessibility', () => {
   })
 
   test('should move focus with Tab', async ({ page }) => {
+    // Root cause (#3): Tab fired before Firefox committed focus after click,
+    // so activeElement was still BODY / pre-click element on first try.
     await page.goto('/')
     const chatTab = page
       .getByRole('navigation', { name: 'القائمة الرئيسية' })
       .getByRole('tab', { name: 'الشات' })
     await expect(chatTab).toBeVisible()
-    // WebKit does not grant a freshly loaded document keyboard focus until a
-    // user gesture; click a real focusable to enter the focus chain, then Tab
-    // must advance focus to the next element.
     await chatTab.click()
+    await expect(chatTab).toBeFocused()
+
     const focusBefore = await page.evaluate(
       () => `${document.activeElement?.tagName}.${document.activeElement?.className}`,
     )
     await page.keyboard.press('Tab')
+    // Firefox can defer focus update by a frame after Tab.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            () => `${document.activeElement?.tagName}.${document.activeElement?.className}`,
+          ),
+        { timeout: 5000 },
+      )
+      .not.toBe(focusBefore)
     const focusAfter = await page.evaluate(
       () => `${document.activeElement?.tagName}.${document.activeElement?.className}`,
     )
-    expect(focusAfter).not.toBe(focusBefore)
     expect(focusAfter).not.toMatch(/^BODY/)
   })
 })

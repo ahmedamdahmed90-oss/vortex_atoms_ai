@@ -19,7 +19,12 @@ export function ChatSidebar({ isOpen, onClose, onNewChat }: ChatSidebarProps) {
   return (
     <>
       {isOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} aria-hidden="true" />}
-      <aside className="fixed lg:static inset-y-0 z-50 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 ease-in-out w-80" style={{ right: '0' }}>
+      <aside
+        className={`fixed lg:static inset-y-0 z-50 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 ease-in-out w-80 ${
+          isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
+        } ${isOpen ? '' : 'invisible lg:visible'}`}
+        style={{ right: '0' }}
+      >
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{language === 'ar' ? 'المحادثات' : 'Conversations'}</h2>
           <button onClick={onClose} className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" aria-label="إغلاق الشريط الجانبي"><X className="h-5 w-5" /></button>
