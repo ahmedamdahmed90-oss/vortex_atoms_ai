@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { useWebSocket } from '../useWebSocket'
 import { useChatStore } from '../../stores/chatStore'
+import { api } from '../../services/api'
 
 const hoisted = vi.hoisted(() => ({
   onEvent: vi.fn(() => vi.fn()),
@@ -79,5 +80,14 @@ it('exposes isConnected from wsService', () => {
      act(() => connHandler(false))
      expect(useChatStore.getState().isStreaming).toBe(false)
      unmount()
+   })
+
+   it('swallows health warmup rejection so token bootstrap cannot break mount', async () => {
+     const healthSpy = vi.spyOn(api, 'health').mockRejectedValue(new Error('down'))
+     renderHook(() => useWebSocket())
+     await waitFor(() => expect(healthSpy).toHaveBeenCalled())
+     await act(async () => { await Promise.resolve() })
+     expect(healthSpy).toHaveBeenCalled()
+     healthSpy.mockRestore()
    })
 })

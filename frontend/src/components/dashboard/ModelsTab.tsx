@@ -93,7 +93,7 @@ export function ModelsTab() {
             </button>
           ))}
         </div>
-        <div className="mt-6 flex justify-end gap-3"><Button variant="secondary" onClick={() => setShowSwapModal(false)}>إلغاء</Button><Button onClick={handleSwap} loading={swapping} disabled={!selectedModel}>{swapping ? 'جاري التبديل...' : 'تبديل النموذج'}</Button></div>
+        <div className="mt-6 flex justify-end gap-3"><Button variant="secondary" onClick={() => setShowSwapModal(false)}>إلغاء</Button><Button onClick={handleSwap} loading={swapping}>تبديل النموذج</Button></div>
       </Modal>
     </div>
   );

@@ -169,9 +169,20 @@ describe('ModelsTab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'تبديل النموذج' }))
     const confirm2 = screen.getAllByRole('button', { name: 'تبديل النموذج' }).pop()!
-    expect(confirm2).toBeDisabled()
+    expect(confirm2).toBeEnabled()
     fireEvent.click(screen.getByLabelText('إغلاق'))
     expect(screen.queryByText('تبديل النموذج', { selector: 'h2' })).not.toBeInTheDocument()
+  })
+
+  it('ignores swap when no model is selected', async () => {
+    hoisted.dash.models = [{ name: 'qwen', architecture: 'qwen', max_seq_len: 1024, max_generation_tokens: 512 }]
+    hoisted.dash.currentModel = 'qwen'
+    render(<ToastProvider><ModelsTab /></ToastProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'تبديل النموذج' }))
+    const confirm = screen.getAllByRole('button', { name: 'تبديل النموذج' }).pop()!
+    fireEvent.click(confirm)
+    expect(hoisted.dash.swapModel).not.toHaveBeenCalled()
   })
 
   it('wraps a single non-array model object into a list', () => {

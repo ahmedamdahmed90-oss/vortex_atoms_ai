@@ -14,8 +14,7 @@ export function ToolsTab() {
   const [showResultModal, setShowResultModal] = useState(false);
 
   const handleExecute = async () => {
-    if (!selectedTool) return;
-    try { setExecuting(true); let args: Record<string, unknown> = {}; try { args = JSON.parse(toolArgs); } catch { throw new Error('معاملات JSON غير صالحة'); } const data = await executeTool(selectedTool, args); setResult(JSON.stringify(data, null, 2)); setShowResultModal(true); } catch (error) { setResult(`خطأ: ${error}`); setShowResultModal(true); } finally { setExecuting(false); }
+    try { setExecuting(true); let args: Record<string, unknown> = {}; try { args = JSON.parse(toolArgs); } catch { throw new Error('معاملات JSON غير صالحة'); } const data = await executeTool(selectedTool ?? '', args); setResult(JSON.stringify(data, null, 2)); setShowResultModal(true); } catch (error) { setResult(`خطأ: ${error}`); setShowResultModal(true); } finally { setExecuting(false); }
   };
 
   return (

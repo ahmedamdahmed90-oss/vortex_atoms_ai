@@ -329,4 +329,107 @@ describe('api client', () => {
     expect(String(f.mock.calls[0][0])).toMatch(/\/v1\/health$/)
     expect(String(f.mock.calls[0][0])).not.toMatch(/\/auth\/bootstrap/)
   })
+
+  it('skips token assignment when bootstrap returns non-ok', async () => {
+    resetAuth()
+    const f = globalThis.fetch as ReturnType<typeof vi.fn>
+    f.mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: 'forbidden' }) })
+      .mockResolvedValueOnce(okResponse({ status: 'ok' }))
+
+    await api.health()
+
+    expect(String(f.mock.calls[0][0])).toMatch(/\/auth\/bootstrap$/)
+    expect(f.mock.calls[1][1]).not.toMatchObject({
+      headers: expect.objectContaining({ Authorization: expect.stringContaining('Bearer') }),
+    })
+  })
+
+  it('stays unauthenticated when bootstrap body is not JSON', async () => {
+    resetAuth()
+    const f = globalThis.fetch as ReturnType<typeof vi.fn>
+    f.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => { throw new Error('bad json') },
+    }).mockResolvedValueOnce(okResponse({ status: 'ok' }))
+
+    await api.health()
+
+    expect(String(f.mock.calls[1][1])).not.toMatchObject({
+      headers: expect.objectContaining({ Authorization: expect.any(String) }),
+    })
+  })
+
+  it('stays unauthenticated when bootstrap reports auth disabled', async () => {
+    resetAuth()
+    const f = globalThis.fetch as ReturnType<typeof vi.fn>
+    f.mockResolvedValueOnce(okResponse({ auth_enabled: false }))
+      .mockResolvedValueOnce(okResponse({ status: 'ok' }))
+
+    await api.health()
+
+    expect(String(f.mock.calls[1][1])).not.toMatchObject({
+      headers: expect.objectContaining({ Authorization: expect.any(String) }),
+    })
+  })
+
+  it('aborts a hanging bootstrap after the 5s cap', async () => {
+    vi.useFakeTimers()
+    try {
+      resetAuth()
+      const f = globalThis.fetch as ReturnType<typeof vi.fn>
+      f.mockImplementationOnce(
+        (_url: unknown, init?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () =>
+              reject(new DOMException('aborted', 'AbortError'))
+            )
+          })
+      ).mockResolvedValueOnce(okResponse({ status: 'ok' }))
+
+      const pending = api.health()
+      await vi.advanceTimersByTimeAsync(5000)
+      await pending
+      expect(String(f.mock.calls[1][0])).toMatch(/\/v1\/health$/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('uses /v1 base when VITE_API_URL is unset in production', async () => {
+    vi.resetModules()
+    vi.stubEnv('PROD', true)
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('VITE_API_URL', '')
+    try {
+      const mod = await import('../api')
+      mod.setTokens('prod-api', 'prod-admin')
+      const f = globalThis.fetch as ReturnType<typeof vi.fn>
+      f.mockResolvedValueOnce(okResponse({ status: 'ok' }))
+      await mod.api.health()
+      expect(String(f.mock.calls[0][0])).toMatch(/^\/v1\/health$/)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
+  it('keeps a custom VITE_API_URL that does not end in /v1', async () => {
+    vi.resetModules()
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:9999/api')
+    try {
+      const mod = await import('../api')
+      mod.setTokens('t', 'a')
+      const f = globalThis.fetch as ReturnType<typeof vi.fn>
+      f.mockResolvedValueOnce(okResponse({ auth_enabled: true, api_token: 'x', admin_token: 'y' }))
+        .mockResolvedValueOnce(okResponse({ status: 'ok' }))
+      mod.resetAuth()
+      await mod.api.health()
+      expect(String(f.mock.calls[0][0])).toBe('http://127.0.0.1:9999/api/auth/bootstrap')
+      expect(String(f.mock.calls[1][0])).toBe('http://127.0.0.1:9999/api/health')
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
 })

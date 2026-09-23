@@ -37,7 +37,7 @@ export function SecurityTab() {
   }, []);
 
   useEffect(() => {
-    refresh().catch(() => undefined);
+    void refresh();
   }, [refresh]);
 
   const rotate = async () => {

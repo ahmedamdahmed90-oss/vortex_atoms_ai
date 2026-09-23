@@ -19,6 +19,17 @@ describe('App', () => {
     expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
   })
 
+  it('loads lazy chat and dashboard routes through their factories', async () => {
+    render(<App />)
+    expect(
+      await screen.findByText('مرحباً بك في Vortex AI', {}, { timeout: 10000 })
+    ).toBeInTheDocument()
+    screen.getByRole('tab', { name: /لوحة التحكم/ }).click()
+    expect(
+      await screen.findByRole('tab', { name: /نظرة عامة/ }, { timeout: 10000 })
+    ).toBeInTheDocument()
+  }, 30000)
+
   it('opens and closes sidebar via header menu and overlay', async () => {
     render(<App />)
     await screen.findByText('Vortex AI')

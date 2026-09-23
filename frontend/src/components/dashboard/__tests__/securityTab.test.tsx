@@ -58,7 +58,7 @@ function mockAdminApi(opts: {
       if (u.includes(key)) return failResponse(f as Failure)
     }
     if (u.includes('/admin/status')) {
-      return { ok: true, status: 200, json: async () => opts.status ?? fullStatus }
+      return { ok: true, status: 200, json: async () => ('status' in opts ? opts.status : fullStatus) }
     }
     if (u.includes('/admin/audit')) {
       return { ok: true, status: 200, json: async () => ({ entries: opts.auditEntries ?? ['a1', 'a2'] }) }
@@ -158,6 +158,12 @@ describe('SecurityTab', () => {
     mockAdminApi({ failures: { '/admin/status': { status: 400, body: { error: 'bad' } } } })
     render(<SecurityTab />)
     expect(await screen.findByText('تعذّر الاتصال بالخادم')).toBeInTheDocument()
+  })
+
+  it('shows empty-data placeholder when status resolves to null', async () => {
+    mockAdminApi({ status: null })
+    render(<SecurityTab />)
+    expect(await screen.findByText('لا بيانات')).toBeInTheDocument()
   })
 
   it('rotate posts, confirms and refreshes', async () => {
