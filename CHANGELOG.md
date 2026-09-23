@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-23
+
 ### Sampler scratch `mem::take` (2026-09-23)
 - **Non-greedy `sample_with_scratch` no longer clones the vocab buffer**
   into a Tensor per token (`scratch.clone()` → `std::mem::take` + capacity
