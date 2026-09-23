@@ -151,45 +151,56 @@ Vortex Atoms AI is built on a **5-Kernel Matrix** architecture — a system of i
 └─────────────┘                       └─────────────┘
 ```
 
-### Message Types
+### Message Types (`src/ikc.rs`)
 
 ```rust
+enum KernelId {
+    Kernel01UiInteraction,
+    Kernel02RouterVectorDb,
+    Kernel03CodeLogicExpert,
+    Kernel04MultimodalMedia,
+    Kernel05SupervisorWatchdog,
+}
+
 enum KernelCommand {
+    UiInput { session_id: String, text: String },
+    RouteIntent { request_id: String, text: String },
+    ExecuteLogic { request_id: String, module: String, payload: String },
+    RenderMedia { request_id: String, media_type: MediaType, prompt: String, frames: usize },
+    RegisterKnowledgeFragment { descriptor: KnowledgeFragmentDescriptor },
+    PurgeInactiveFragments { older_than_ms: u128 },
+    LlmGenerate { request_id: String, prompt: String, max_tokens: Option<usize>,
+                  temperature: Option<f64>, top_p: Option<f64>, stream: bool },
+    LlmCancel { request_id: String },
     Shutdown,
-    ProcessInput { session_id: String, input: String },
-    SearchKnowledge { query: String, limit: usize },
-    LoadModel { path: String },
-    ExecuteTool { name: String, arguments: serde_json::Value },
-    PurgeInactive { threshold: Duration },
-}
-
-struct IkcMessage {
-    source: KernelId,
-    target: KernelId,
-    command: KernelCommand,
-    timestamp: u64,
-}
-
-enum IkcEvent {
-    Ready,
-    ProcessingComplete { result: String },
-    Error { message: String },
-    KnowledgeUpdated { chunks: usize },
 }
 ```
+
+Commands travel over `tokio::sync::mpsc` channels between kernel tasks.
+`LlmGenerate` / `LlmCancel` are handled by Kernel_03 only.
+
+### Inference session isolation
+
+Every generate path (HTTP `/v1/generate`, streaming, `/v1/tools/call`,
+`/v1/batch`, AgentLoop, WS `/ws`, IKC `LlmGenerate`) **forks an ephemeral
+`InferenceSession`** via `engine.fork_session()` / `pool.fork_session()`:
+
+- History, temperature/top-k/top-p, and the cancel flag live on the session,
+  not the engine — cancelling or mutating one request never bleeds into
+  another.
+- Concurrent requests check out independent `EnginePool` slots
+  (`performance.pool_size` 1..=4); each slot owns a full weight set.
+- Config swaps bump a pool epoch; idle slots reload lazily on next checkout
+  (never mid-generation).
+
+See `src/inference_session.rs`, `src/engine_pool.rs`, `src/llm_ws.rs`.
 
 ### Shared State
 
-```rust
-struct VortexAtomsSharedState {
-    current_model: Option<ModelInfo>,
-    knowledge_index: VectorStore,
-    conversation_history: HashMap<String, Vec<Message>>,
-    system_metrics: SystemMetrics,
-}
-```
-
-Protected with `Arc<RwLock<VortexAtomsSharedState>>` for safe concurrent access.
+Application state is `Arc<RwLock<ApiState>>` (models, knowledge index,
+session store, engine pool, metrics). Read-only observability paths
+(`/v1/health`, `/v1/device`, `/v1/models`) use `pool.try_read_any()` so they
+never queue behind generation.
 
 ---
 

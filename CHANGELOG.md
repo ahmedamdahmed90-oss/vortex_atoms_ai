@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (2026-09-23)
+- **ARCHITECTURE.md IKC section rewritten** to match `src/ikc.rs`
+  (real `KernelId`/`KernelCommand` variants, `InferenceSession` fork
+  model, `EnginePool` slots, `ApiState` shared state) — closes the
+  long-noted IKC sketch staleness (ENGINEERING_REVIEW limitation 4).
+- **KNOWN_ISSUES.md**: Firefox flakes #1–#3 marked **Fixed** (30/30,
+  issues closed).
+
 ## [0.2.4] - 2026-09-23
 
 ### Health endpoint versioning (2026-09-23)

@@ -63,7 +63,9 @@
 2. ~~ANN retrieval not implemented~~ — **done** (IVF opt-in via
    `VectorStore::trained_ivf`; see future work #4).
 3. Inference/memory numbers unmeasured here (no model on box; harness exists).
-4. ARCHITECTURE.md §IKC sketch predates current code (pre-existing staleness, noted, not rewritten in this pass).
+4. ~~ARCHITECTURE.md §IKC sketch predates current code~~ — **done**
+   (IKC section rewritten to match `src/ikc.rs` + session/pool isolation,
+   2026-09-23).
 5. Eviction ties resolve nondeterministically (valid victim either way).
 
 ## Recommended future work

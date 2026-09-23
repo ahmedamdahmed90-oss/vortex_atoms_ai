@@ -6,19 +6,19 @@ title: Known Issues
 
 > **Copyright (c) 2026 Ahmad Mansour.** All rights reserved.
 
-## E2E Test Flakes (Firefox)
+## E2E Test Flakes (Firefox) — FIXED (2026-09-23)
 
 | # | Symptom | Browser | Status | Issue |
 |---|---------|---------|--------|-------|
-| 1 | Intermittent timeout on sidebar toggle (mobile viewport) | Firefox | Retry-green | [#1](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues/1) |
-| 2 | Race condition in theme toggle assertion | Firefox | Retry-green | [#2](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues/2) |
-| 3 | Focus trap test flake on keyboard navigation | Firefox | Retry-green | [#3](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues/3) |
+| 1 | Intermittent timeout on sidebar toggle (mobile viewport) | Firefox | **Fixed** (30/30) | [#1](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues/1) closed |
+| 2 | Race condition in theme toggle assertion | Firefox | **Fixed** (30/30) | [#2](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues/2) closed |
+| 3 | Focus trap test flake on keyboard navigation | Firefox | **Fixed** (30/30) | [#3](https://github.com/ahmedamdahmed90-oss/vortex_atoms_ai/issues/3) closed |
 
-### Retry Policy
+### Retry Policy (historical)
 
-- **Max retries:** 1 (label: `retry-green`)
+- **Max retries:** 1 (label: `retry-green`) — no longer needed for #1–#3
 - **Flaky test label:** `flaky`
-- **Target fix date:** 2026-10-15
+- **Target fix date:** 2026-10-15 — met early (2026-09-23)
 
 ### How to reproduce
 
