@@ -111,10 +111,12 @@ impl HotTokenCache {
 
     fn enforce_capacity(&mut self) {
         while self.total_tokens > self.capacity_tokens && !self.blocks.is_empty() {
+            // Tie-break on key so equal (hits, last_access) always evicts
+            // the same victim regardless of HashMap iteration order.
             let coldest_key = self
                 .blocks
                 .iter()
-                .min_by_key(|(_, block)| (block.hits, block.last_access_epoch_ms))
+                .min_by_key(|(key, block)| (block.hits, block.last_access_epoch_ms, key.as_str()))
                 .map(|(key, _)| key.clone());
 
             if let Some(key) = coldest_key {
@@ -178,4 +180,34 @@ pub fn tokenize_cognitive_bytes(bytes: &[u8]) -> Arc<[u32]> {
     }
 
     Arc::from(tokens.into_boxed_slice())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capacity_tie_evicts_lexicographically_smallest_key() {
+        // Each 8-byte block → 2 tokens. Capacity 4 fits two blocks; the
+        // third insert overflows. Equal hits + equal last_access → id wins.
+        let mut cache = HotTokenCache::new(4);
+        let fixed_ts = 1_700_000_000_000u128;
+        let mk = |key: &str| {
+            let mut block = CognitiveTokenBlock::from_bytes(key, &[1, 2, 3, 4, 5, 6, 7, 8]);
+            block.last_access_epoch_ms = fixed_ts;
+            (key.to_string(), block)
+        };
+
+        let (ka, ba) = mk("aa");
+        let (km, bm) = mk("mm");
+        let (kz, bz) = mk("zz");
+
+        cache.insert_cached(ka, ba);
+        cache.insert_cached(km, bm);
+        cache.insert_cached(kz, bz);
+
+        assert!(cache.get_cached(&"aa".to_string()).is_none());
+        assert!(cache.get_cached(&"mm".to_string()).is_some());
+        assert!(cache.get_cached(&"zz".to_string()).is_some());
+    }
 }

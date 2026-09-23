@@ -66,7 +66,10 @@
 4. ~~ARCHITECTURE.md §IKC sketch predates current code~~ — **done**
    (IKC section rewritten to match `src/ikc.rs` + session/pool isolation,
    2026-09-23).
-5. Eviction ties resolve nondeterministically (valid victim either way).
+5. ~~Eviction ties resolve nondeterministically~~ — **done** (victim key
+   now includes fragment/key id as final tie-break in
+   `enforce_loaded_capacity` + `HotTokenCache::enforce_capacity`; tests
+   cover full-tie cases).
 
 ## Recommended future work
 

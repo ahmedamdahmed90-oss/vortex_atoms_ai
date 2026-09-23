@@ -97,8 +97,8 @@ WS/IKC/tool/batch/agent paths are session-isolated (history, sampler,
 temperature, cancel); concurrent execution via `EnginePool`
 (`performance.pool_size` 1..=4, each slot owns full weights). No ANN gap
 (IVF opt-in done); inference/RSS unmeasured here; ARCHITECTURE.md IKC
-section **refreshed** to match `src/ikc.rs` + session isolation (was stale);
-eviction ties nondeterministic (valid victim either way).
+section **refreshed** to match `src/ikc.rs` + session isolation; eviction
+ties **deterministic** (id tie-break + tests).
 
 ## 13. Known trade-offs
 

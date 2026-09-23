@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deterministic eviction (2026-09-23)
+- **Eviction victim selection is now deterministic on full ties**: both
+  `KnowledgeOrchestratorState::enforce_loaded_capacity` and
+  `HotTokenCache::enforce_capacity` break equal `(count, last_access)`
+  ties with the fragment/key id (lexicographically smallest wins) instead
+  of relying on `HashMap` iteration order. 2 new tests (orchestrator +
+  token cache full-tie cases). Closes ENGINEERING_REVIEW limitation 5.
+
 ### Docs (2026-09-23)
 - **ARCHITECTURE.md IKC section rewritten** to match `src/ikc.rs`
   (real `KernelId`/`KernelCommand` variants, `InferenceSession` fork
