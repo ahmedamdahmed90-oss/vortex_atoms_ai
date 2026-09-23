@@ -44,6 +44,9 @@ Returns the health status of the server.
 ```json
 {
   "status": "ok",
+  "version": "0.2.3",
+  "build_ts": "1758615338",
+  "git_sha": "3f3c47f",
   "architecture": "llama",
   "device": "Cpu",
   "simd": "AVX + SSE4.2 + SSE4.1 + SSSE3 + SSE2",
@@ -56,6 +59,9 @@ Returns the health status of the server.
 | Field | Type | Description |
 |-------|------|-------------|
 | status | string | Server status ("ok" or error) |
+| version | string | Crate version from Cargo.toml (e.g., "0.2.3") |
+| build_ts | string | Compile-time Unix timestamp (seconds) from build.rs |
+| git_sha | string | Short git SHA at build time (or "unknown") |
 | architecture | string | Model architecture (e.g., "llama") |
 | device | string | Compute device ("Cpu" or "Cuda") |
 | simd | string | SIMD instruction set support |

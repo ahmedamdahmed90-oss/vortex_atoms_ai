@@ -76,7 +76,7 @@ describe('Dashboard', () => {
     expect(screen.getByRole('tablist')).toBeInTheDocument()
 
     hoisted.dash.activeTab = 'performance'
-    hoisted.dash.health = { status: 'ok', architecture: 'x86_64', device: 'cpu', simd: 'sse42', history_length: 0, uptime_seconds: 999, knowledge_chunks: 0, perf: { sku: 'test-sku', tier: 'auto', tier_model: 't', tier_max_context: 4096, infer_threads: 4, async_workers: 2, prefault_enabled: true, compiled_features: ['sse2'], host_features: ['avx2'], fastpath_avg_ms: 10 } }
+    hoisted.dash.health = { status: 'ok', version: '0.2.3', build_ts: '1758615338', git_sha: '3f3c47f', architecture: 'x86_64', device: 'cpu', simd: 'sse42', history_length: 0, uptime_seconds: 999, knowledge_chunks: 0, perf: { sku: 'test-sku', tier: 'auto', tier_model: 't', tier_max_context: 4096, infer_threads: 4, async_workers: 2, prefault_enabled: true, compiled_features: ['sse2'], host_features: ['avx2'], fastpath_avg_ms: 10 } }
     rerender(<ToastProvider><Dashboard /></ToastProvider>)
     expect(screen.getByText('test-sku')).toBeInTheDocument()
   })
@@ -90,7 +90,8 @@ describe('Dashboard', () => {
 
 describe('PerformanceTab', () => {
   const perfHealth = {
-    status: 'ok', architecture: 'x86_64', device: 'cpu', simd: 'sse42',
+    status: 'ok', version: '0.2.3', build_ts: '1758615338', git_sha: '3f3c47f',
+    architecture: 'x86_64', device: 'cpu', simd: 'sse42',
     history_length: 0, uptime_seconds: 999, knowledge_chunks: 0,
     perf: { sku: 'test-sku', tier: 'auto', tier_model: 't', tier_max_context: 4096, infer_threads: 4, async_workers: 2, prefault_enabled: true, compiled_features: ['sse2'], host_features: ['avx2'], fastpath_avg_ms: 10 },
   }

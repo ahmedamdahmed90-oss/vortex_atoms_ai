@@ -17,6 +17,9 @@ vi.mock('../../services/api', () => ({ api: hoisted.api }))
 
 const healthPayload = {
   status: 'ok',
+  version: '0.2.3',
+  build_ts: '1758615338',
+  git_sha: '3f3c47f',
   architecture: '5km',
   device: 'cpu',
   simd: 'avx2',

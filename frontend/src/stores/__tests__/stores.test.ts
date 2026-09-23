@@ -292,7 +292,7 @@ describe('dashboardStore', () => {
 
   it('stores health, models, tools and search results', () => {
     const st = useDashboardStore.getState()
-    st.setHealth({ status: 'ok', architecture: '5km', device: 'cpu', simd: 'avx2', history_length: 0, uptime_seconds: 12, knowledge_chunks: 7, perf: { sku: 'avx1', tier: 'std', tier_model: 'qwen', tier_max_context: 4096, infer_threads: 2, async_workers: 2, prefault_enabled: true, compiled_features: ['sse2'], host_features: ['sse2'], fastpath_avg_ms: 1.5 } })
+    st.setHealth({ status: 'ok', version: '0.2.3', build_ts: '1758615338', git_sha: '3f3c47f', architecture: '5km', device: 'cpu', simd: 'avx2', history_length: 0, uptime_seconds: 12, knowledge_chunks: 7, perf: { sku: 'avx1', tier: 'std', tier_model: 'qwen', tier_max_context: 4096, infer_threads: 2, async_workers: 2, prefault_enabled: true, compiled_features: ['sse2'], host_features: ['sse2'], fastpath_avg_ms: 1.5 } })
     st.setModels([{ name: 'm1', architecture: 'qwen', max_seq_len: 32768, max_generation_tokens: 8192 }])
     st.setTools([{ name: 'calc', description: 'calculator' }])
     st.setSearchResults([{ id: 'c1', score: 0.9, text: 'chunk' }])

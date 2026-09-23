@@ -270,6 +270,9 @@ pub struct PerfInfo {
 #[derive(Serialize)]
 pub struct HealthResponse {
     pub status: String,
+    pub version: String,
+    pub build_ts: String,
+    pub git_sha: String,
     pub architecture: String,
     pub device: String,
     pub simd: String,
@@ -681,6 +684,9 @@ async fn handle_health(
         StatusCode::OK,
         Json(HealthResponse {
             status: "ok".to_string(),
+            version: crate::build_info::version().to_string(),
+            build_ts: crate::build_info::build_ts().to_string(),
+            git_sha: crate::build_info::git_sha().to_string(),
             architecture: engine.model_architecture().to_string(),
             device: engine.device_type(),
             simd: engine.simd_level().to_string(),

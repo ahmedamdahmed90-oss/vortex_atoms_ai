@@ -95,6 +95,9 @@ export interface PerfInfo {
 
 export interface HealthResponse {
   status: string;
+  version: string;
+  build_ts: string;
+  git_sha: string;
   architecture: string;
   device: string;
   simd: string;
