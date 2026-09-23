@@ -156,7 +156,7 @@ describe('WebSocketService', () => {
   })
 
   it('reconnects after unexpected close and logs when retry fails', async () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'debug').mockImplementation(() => {})
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     const raw = await openConnection()
     raw.readyState = 3
