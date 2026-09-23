@@ -24,10 +24,11 @@ The bundled web UI fetches both tokens automatically from the loopback-only
 `GET /auth/bootstrap` endpoint. `GET /v1/health` stays public (liveness).
 
 ```bash
-# read the user token (printed at startup, or from auth.json)
+# export once (or read tokens from auth.json / server stdout)
+export VORTEX_API_TOKEN="vxt_..."
 curl http://localhost:8080/v1/chat \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer vxt_..."
+  -H "Authorization: Bearer $VORTEX_API_TOKEN"
 ```
 
 ---
@@ -621,56 +622,193 @@ bundled same-origin UI. Remote peers get 403.
 
 ## Examples
 
+Tokens come from the environment (`VORTEX_API_TOKEN` / `VORTEX_ADMIN_TOKEN`),
+server stdout, or `%LOCALAPPDATA%\vortex_atoms_ai\auth.json`. All authenticated
+examples below read them from the env vars.
+
 ### cURL Examples
 
 ```bash
-TOKEN="vxt_..."   # from server stdout or %LOCALAPPDATA%\vortex_atoms_ai\auth.json
-ADMIN="vxa_..."   # admin token for privileged endpoints
+# Tokens (export once, or read from auth.json)
+export VORTEX_API_TOKEN="vxt_..."    # user token
+export VORTEX_ADMIN_TOKEN="vxa_..."  # admin token (privileged endpoints only)
 
-# Health check (public)
-curl http://localhost:8080/v1/health
+BASE="http://localhost:8080"
 
-# Generate text
-curl -X POST http://localhost:8080/v1/generate \
+# --- Health & status (public — no auth required) ---
+curl "$BASE/v1/health"
+curl "$BASE/v1/device"
+
+# --- Auth bootstrap (loopback only) ---
+curl "$BASE/auth/bootstrap"
+
+# --- Models (read) ---
+curl "$BASE/v1/models" -H "Authorization: Bearer $VORTEX_API_TOKEN"
+
+# --- Chat ---
+curl -X POST "$BASE/v1/chat" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"prompt": "Hello, world!", "max_tokens": 100}'
+  -H "Authorization: Bearer $VORTEX_API_TOKEN" \
+  -d '{"messages":[{"role":"user","content":"Hello!"}],"max_tokens":100}'
 
-# Chat
-curl -X POST http://localhost:8080/v1/chat \
+# --- Generate ---
+curl -X POST "$BASE/v1/generate" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"messages": [{"role": "user", "content": "Hello!"}]}'
+  -H "Authorization: Bearer $VORTEX_API_TOKEN" \
+  -d '{"prompt":"Hello, world!","max_tokens":100}'
 
-# Search knowledge
-curl -X POST http://localhost:8080/v1/knowledge/search \
+# --- Batch ---
+curl -X POST "$BASE/v1/batch" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"query": "machine learning", "limit": 5}'
+  -H "Authorization: Bearer $VORTEX_API_TOKEN" \
+  -d '{"prompts":["Prompt 1","Prompt 2"],"max_tokens":64}'
 
-# List tools
-curl http://localhost:8080/v1/tools -H "Authorization: Bearer $TOKEN"
-
-# Execute tool
-curl -X POST http://localhost:8080/v1/tools/execute \
+# --- Embeddings ---
+curl -X POST "$BASE/v1/embeddings" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"name": "system_info", "arguments": {}}'
+  -H "Authorization: Bearer $VORTEX_API_TOKEN" \
+  -d '{"input":["Hello world"]}'
 
-# Swap model (admin only, allowlisted repos unless opted in)
-curl -X POST http://localhost:8080/v1/models/swap \
+# --- Knowledge search ---
+curl -X POST "$BASE/v1/knowledge/search" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ADMIN" \
-  -d '{"repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF", "model": "qwen2.5-1.5b-instruct-q4_k_m.gguf"}'
+  -H "Authorization: Bearer $VORTEX_API_TOKEN" \
+  -d '{"query":"machine learning","limit":5}'
+
+# --- Knowledge import (admin) ---
+curl -X POST "$BASE/v1/knowledge/import" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN" \
+  -d '{"text":"Vortex Atoms AI knowledge snippet."}'
+
+# --- Tools ---
+curl "$BASE/v1/tools" -H "Authorization: Bearer $VORTEX_API_TOKEN"
+curl -X POST "$BASE/v1/tools/execute" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $VORTEX_API_TOKEN" \
+  -d '{"name":"system_info","arguments":{}}'
+curl -X POST "$BASE/v1/tools/call" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $VORTEX_API_TOKEN" \
+  -d '{"prompt":"What is my system info?","max_tokens":256}'
+
+# --- Model swap (admin, allowlisted repos unless opted in) ---
+curl -X POST "$BASE/v1/models/swap" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN" \
+  -d '{"repo":"Qwen/Qwen2.5-0.5B-Instruct-GGUF","model":"qwen2.5-0.5b-instruct-q4_0.gguf"}'
+
+# --- Admin control plane (admin token) ---
+curl "$BASE/v1/admin/status"  -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN"
+curl "$BASE/v1/admin/audit?lines=50" -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN"
+curl "$BASE/v1/admin/metrics" -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN"
+curl -X POST "$BASE/v1/admin/rotate"  -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN"
+curl -X POST "$BASE/v1/admin/reload"  -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN"
+curl -X POST "$BASE/v1/admin/sessions/purge" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $VORTEX_ADMIN_TOKEN" \
+  -d '{"days":30}'
+```
+
+### PowerShell Examples (Windows)
+
+```powershell
+# Tokens — set once per session, or read from auth.json
+$env:VORTEX_API_TOKEN  = "vxt_..."
+$env:VORTEX_ADMIN_TOKEN = "vxa_..."
+# Or from disk:
+# $auth = Get-Content "$env:LOCALAPPDATA\vortex_atoms_ai\auth.json" | ConvertFrom-Json
+# $env:VORTEX_API_TOKEN  = $auth.api_token
+# $env:VORTEX_ADMIN_TOKEN = $auth.admin_token
+
+$Base = "http://localhost:8080"
+$UserHdr  = @{ Authorization = "Bearer $env:VORTEX_API_TOKEN" }
+$AdminHdr = @{ Authorization = "Bearer $env:VORTEX_ADMIN_TOKEN" }
+$Json     = @{ 'Content-Type' = 'application/json' }
+
+# --- Health & status (public) ---
+Invoke-RestMethod "$Base/v1/health"
+Invoke-RestMethod "$Base/v1/device"
+
+# --- Models (read) ---
+Invoke-RestMethod "$Base/v1/models" -Headers $UserHdr
+
+# --- Chat ---
+Invoke-RestMethod -Method Post "$Base/v1/chat" -Headers ($Json + $UserHdr) -Body (@{
+  messages = @(@{ role = 'user'; content = 'Hello!' })
+  max_tokens = 100
+} | ConvertTo-Json -Depth 5)
+
+# --- Generate ---
+Invoke-RestMethod -Method Post "$Base/v1/generate" -Headers ($Json + $UserHdr) -Body (@{
+  prompt = 'Hello, world!'; max_tokens = 100
+} | ConvertTo-Json)
+
+# --- Batch ---
+Invoke-RestMethod -Method Post "$Base/v1/batch" -Headers ($Json + $UserHdr) -Body (@{
+  prompts = @('Prompt 1','Prompt 2'); max_tokens = 64
+} | ConvertTo-Json)
+
+# --- Embeddings ---
+Invoke-RestMethod -Method Post "$Base/v1/embeddings" -Headers ($Json + $UserHdr) -Body (@{
+  input = @('Hello world')
+} | ConvertTo-Json)
+
+# --- Knowledge search ---
+Invoke-RestMethod -Method Post "$Base/v1/knowledge/search" -Headers ($Json + $UserHdr) -Body (@{
+  query = 'machine learning'; limit = 5
+} | ConvertTo-Json)
+
+# --- Knowledge import (admin) ---
+Invoke-RestMethod -Method Post "$Base/v1/knowledge/import" -Headers ($Json + $AdminHdr) -Body (@{
+  text = 'Vortex Atoms AI knowledge snippet.'
+} | ConvertTo-Json)
+
+# --- Tools ---
+Invoke-RestMethod "$Base/v1/tools" -Headers $UserHdr
+Invoke-RestMethod -Method Post "$Base/v1/tools/execute" -Headers ($Json + $UserHdr) -Body (@{
+  name = 'system_info'; arguments = @{}
+} | ConvertTo-Json -Depth 5)
+Invoke-RestMethod -Method Post "$Base/v1/tools/call" -Headers ($Json + $UserHdr) -Body (@{
+  prompt = 'What is my system info?'; max_tokens = 256
+} | ConvertTo-Json)
+
+# --- Model swap (admin) ---
+Invoke-RestMethod -Method Post "$Base/v1/models/swap" -Headers ($Json + $AdminHdr) -Body (@{
+  repo  = 'Qwen/Qwen2.5-0.5B-Instruct-GGUF'
+  model = 'qwen2.5-0.5b-instruct-q4_0.gguf'
+} | ConvertTo-Json)
+
+# --- Admin control plane ---
+Invoke-RestMethod "$Base/v1/admin/status"  -Headers $AdminHdr
+Invoke-RestMethod "$Base/v1/admin/audit?lines=50" -Headers $AdminHdr
+Invoke-RestMethod "$Base/v1/admin/metrics" -Headers $AdminHdr
+Invoke-RestMethod -Method Post "$Base/v1/admin/rotate"  -Headers $AdminHdr
+Invoke-RestMethod -Method Post "$Base/v1/admin/reload"  -Headers $AdminHdr
+Invoke-RestMethod -Method Post "$Base/v1/admin/sessions/purge" -Headers ($Json + $AdminHdr) -Body (@{
+  days = 30
+} | ConvertTo-Json)
+
+# curl.exe fallback (Windows 10+ ships curl.exe alongside PowerShell)
+curl.exe -s "$Base/v1/health"
+curl.exe -s -X POST "$Base/v1/generate" `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $env:VORTEX_API_TOKEN" `
+  -d '{\"prompt\":\"Hello, world!\",\"max_tokens\":100}'
 ```
 
 ### JavaScript/TypeScript Examples
 
 ```typescript
+const TOKEN = process.env.VORTEX_API_TOKEN!; // user token from env
+
 // Generate text
 const response = await fetch('http://localhost:8080/v1/generate', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${TOKEN}`
+  },
   body: JSON.stringify({
     prompt: 'Write a Python function',
     max_tokens: 512,
@@ -700,26 +838,48 @@ ws.onmessage = (event) => {
 ### Python Examples
 
 ```python
+import os
 import requests
 
-# Health check
+TOKEN = os.environ['VORTEX_API_TOKEN']       # user token
+ADMIN = os.environ.get('VORTEX_ADMIN_TOKEN') # admin token (privileged only)
+AUTH = {'Authorization': f'Bearer {TOKEN}'}
+JSON = {'Content-Type': 'application/json'}
+
+# Health check (public — no auth required)
 response = requests.get('http://localhost:8080/v1/health')
 print(response.json())
 
 # Generate text
-response = requests.post('http://localhost:8080/v1/generate', json={
-    'prompt': 'Hello, world!',
-    'max_tokens': 100
-})
+response = requests.post(
+    'http://localhost:8080/v1/generate',
+    headers={**AUTH, **JSON},
+    json={'prompt': 'Hello, world!', 'max_tokens': 100},
+)
+print(response.json()['text'])
+
+# Chat
+response = requests.post(
+    'http://localhost:8080/v1/chat',
+    headers={**AUTH, **JSON},
+    json={'messages': [{'role': 'user', 'content': 'Hello!'}], 'max_tokens': 100},
+)
 print(response.json()['text'])
 
 # Search knowledge
-response = requests.post('http://localhost:8080/v1/knowledge/search', json={
-    'query': 'machine learning',
-    'limit': 5
-})
+response = requests.post(
+    'http://localhost:8080/v1/knowledge/search',
+    headers={**AUTH, **JSON},
+    json={'query': 'machine learning', 'limit': 5},
+)
 for result in response.json()['results']:
     print(f"Score: {result['score']}, Text: {result['text']}")
+
+# Admin control plane (admin token required)
+if ADMIN:
+    admin_auth = {'Authorization': f'Bearer {ADMIN}'}
+    status = requests.get('http://localhost:8080/v1/admin/status', headers=admin_auth)
+    print(status.json())
 ```
 
 ---
