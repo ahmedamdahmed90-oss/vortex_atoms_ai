@@ -36,8 +36,8 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy manifests
-COPY Cargo.toml Cargo.lock ./
+# Copy manifests + build script
+COPY Cargo.toml Cargo.lock build.rs ./
 
 # Create dummy main.rs for dependency caching
 RUN mkdir src && echo "fn main() {}" > src/main.rs
