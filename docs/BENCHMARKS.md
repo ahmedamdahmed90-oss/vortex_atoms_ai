@@ -66,12 +66,27 @@ faster (train is offline, queries are what matter).
 - No inference hot-path changes made: no model was available on this
   machine to measure generation, and the protocol forbids unmeasured
   "optimizations".
-- Identified (not changed) opportunity: `VortexSampler::sample_with_scratch`
-  clones the scratch buffer into a Tensor per token on the non-greedy path
-  (`Tensor::from_vec(scratch.clone(), …)`). A `mem::take`/`replace` form
-  would remove one vocab-size memcpy per token — left for a stage with a
-  loaded model + tokens/sec harness to prove it.
+- Identified opportunity: `VortexSampler::sample_with_scratch`
+  cloned the scratch buffer into a Tensor per token on the non-greedy path
+  (`Tensor::from_vec(scratch.clone(), …)`). **Done (2026-09-23):**
+  `mem::take` moves the buffer into the Tensor (no vocab memcpy); capacity
+  is `reserve`d after the Tensor drops. Measured below.
 - ` batch_generate` already clears history per item (verified Stage 9).
+
+## Sampler non-greedy path — mem::take (measured 2026-09-23, debug)
+
+Rerun: `cargo test --features learner --lib bench_sample_with_scratch -- --ignored --nocapture`
+
+| Metric | Result |
+|--------|--------|
+| samples (vocab=32000, temp=0.8, debug) | 2000 in **17.69s** → **113.1 samples/s** |
+| scratch capacity after bench | **32000** (restored, no shrink to 0) |
+| old path cost removed | one `Vec<f32>` clone (~128 KB) per sample |
+| greedy path | unchanged (argmax on scratch, no Tensor) |
+
+Tests: `sample_with_scratch_nongreedy_restores_capacity`,
+`sample_with_scratch_nongreedy_returns_valid_token`,
+`sample_with_scratch_greedy_matches_argmax` (in-tree regression floor).
 
 ## Inference (measured 2026-09-21, closes the gap above)
 

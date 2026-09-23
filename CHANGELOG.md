@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Sampler scratch `mem::take` (2026-09-23)
+- **Non-greedy `sample_with_scratch` no longer clones the vocab buffer**
+  into a Tensor per token (`scratch.clone()` → `std::mem::take` + capacity
+  `reserve` after the Tensor drops). Removes one ~32k `f32` memcpy per
+  sample on the temperature/top-k/top-p path (greedy path unchanged —
+  pure argmax on scratch, no Tensor).
+- Capacity is restored on both success and `from_vec` error paths so the
+  next token's `clear`+`extend` reuses the allocation.
+- 3 new tests (capacity held across samples, valid token range, greedy
+  argmax parity) + ignored bench `bench_sample_with_scratch_nongreedy_tps`.
+- Measured (debug, i5-2430M): **113.1 samples/s** at vocab=32000,
+  capacity restored to 32000 after 2000 samples
+  (`cargo test --features learner --lib bench_sample_with_scratch -- --ignored --nocapture`).
+
 ### Engine pool for concurrent execution (2026-09-23)
 - **`EnginePool`** (`src/engine_pool.rs`): N independent `LlmInference`
   slots (each owns a full weight set — candle `ModelWeights` is not

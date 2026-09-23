@@ -262,8 +262,9 @@ impl VortexSampler {
         let tmp = logits.to_vec1::<f32>()?;
         scratch.clear();
         scratch.extend_from_slice(&tmp);
-        // Apply windowed penalty in place on scratch, then create penalized tensor
-        // from scratch (single Tensor alloc, no HashMap on greedy).
+        // Apply windowed penalty in place on scratch, then move the buffer
+        // into the Tensor via mem::take (no vocab-size memcpy per token —
+        // the old `scratch.clone()` copied ~32k f32 on every sample).
         if self.repeat_penalty > 1.0 && !generated_tokens.is_empty() {
             let start = generated_tokens.len().saturating_sub(self.repeat_last_n);
             for &tok in &generated_tokens[start..] {
@@ -276,8 +277,23 @@ impl VortexSampler {
                 }
             }
         }
-        let penalized = Tensor::from_vec(scratch.clone(), logits.shape(), logits.device())?;
-        Ok(self.inner.sample(&penalized)?)
+        let capacity = scratch.capacity();
+        let taken = std::mem::take(scratch);
+        let penalized = match Tensor::from_vec(taken, logits.shape(), logits.device()) {
+            Ok(t) => t,
+            Err(e) => {
+                // from_vec consumed `taken`; restore capacity before propagating.
+                scratch.reserve(capacity);
+                return Err(e.into());
+            }
+        };
+        let sample_result = self.inner.sample(&penalized);
+        drop(penalized);
+        // Buffer freed with the Tensor. Restore capacity so the next token's
+        // clear+extend reuses the allocation (peak stays ~2 buffers like the
+        // old clone path, but without the per-token vocab memcpy).
+        scratch.reserve(capacity);
+        Ok(sample_result?)
     }
 
     /// Sample the next token from logits, applying repeat penalty.
@@ -430,5 +446,102 @@ mod tests {
         let draws_a: Vec<u32> = (0..16).map(|_| sample_token(&mut a, 0.5)).collect();
         let draws_b: Vec<u32> = (0..16).map(|_| sample_token(&mut b, 0.5)).collect();
         assert_ne!(draws_a, draws_b);
+    }
+
+    fn vocab_logits(vocab: usize) -> Tensor {
+        // Deterministic non-flat distribution so sampling is meaningful.
+        let data: Vec<f32> = (0..vocab)
+            .map(|i| ((i * 17) % 100) as f32 / 100.0)
+            .collect();
+        Tensor::new(data.as_slice(), &candle_core::Device::Cpu).unwrap()
+    }
+
+    #[test]
+    fn sample_with_scratch_nongreedy_restores_capacity() {
+        let vocab = 4096;
+        let mut sampler = VortexSampler::new(42, &config_with(Some(0.8), None, None));
+        assert!(!sampler.is_greedy());
+        let logits = vocab_logits(vocab);
+        let mut scratch = Vec::with_capacity(vocab);
+        // Prime once so capacity is non-zero after the first take/reserve.
+        let _ = sampler
+            .sample_with_scratch(&logits, &[], &mut scratch)
+            .unwrap();
+        assert!(
+            scratch.capacity() >= vocab,
+            "capacity must be restored after mem::take path (got {})",
+            scratch.capacity()
+        );
+        // Repeated calls must not shrink below vocab (no per-token realloc to 0).
+        for _ in 0..8 {
+            let _ = sampler
+                .sample_with_scratch(&logits, &[1, 2, 3], &mut scratch)
+                .unwrap();
+            assert!(
+                scratch.capacity() >= vocab,
+                "capacity held across samples (got {})",
+                scratch.capacity()
+            );
+        }
+    }
+
+    #[test]
+    fn sample_with_scratch_nongreedy_returns_valid_token() {
+        let vocab = 512;
+        let mut sampler = VortexSampler::new(7, &config_with(Some(0.9), Some(40), None));
+        let logits = vocab_logits(vocab);
+        let mut scratch = Vec::with_capacity(vocab);
+        for _ in 0..32 {
+            let tok = sampler
+                .sample_with_scratch(&logits, &[0, 1], &mut scratch)
+                .unwrap();
+            assert!((tok as usize) < vocab, "token {tok} out of vocab {vocab}");
+        }
+    }
+
+    #[test]
+    fn sample_with_scratch_greedy_matches_argmax() {
+        let vocab = 256;
+        let mut sampler = VortexSampler::new(1, &config_with(Some(0.0), None, None));
+        assert!(sampler.is_greedy());
+        let logits = vocab_logits(vocab);
+        let mut scratch = Vec::with_capacity(vocab);
+        let tok = sampler
+            .sample_with_scratch(&logits, &[], &mut scratch)
+            .unwrap();
+        let data: Vec<f32> = (0..vocab)
+            .map(|i| ((i * 17) % 100) as f32 / 100.0)
+            .collect();
+        assert_eq!(tok as usize, argmax_index(&data));
+    }
+
+    /// tokens/sec proof for the mem::take non-greedy path (vocab 32k clone
+    /// removed). Ignored in normal runs; execute explicitly and record.
+    #[test]
+    #[ignore]
+    fn bench_sample_with_scratch_nongreedy_tps() {
+        let vocab = 32_000;
+        let mut sampler = VortexSampler::new(42, &config_with(Some(0.8), None, None));
+        assert!(!sampler.is_greedy());
+        let logits = vocab_logits(vocab);
+        let mut scratch = Vec::with_capacity(vocab);
+        // Warm-up (first take/reserve).
+        let _ = sampler
+            .sample_with_scratch(&logits, &[], &mut scratch)
+            .unwrap();
+        let iters = 2_000u32;
+        let start = std::time::Instant::now();
+        for i in 0..iters {
+            let _ = sampler
+                .sample_with_scratch(&logits, &[i % 100], &mut scratch)
+                .unwrap();
+        }
+        let secs = start.elapsed().as_secs_f64();
+        let tps = if secs > 0.0 { iters as f64 / secs } else { 0.0 };
+        println!(
+            "sample_with_scratch non-greedy mem::take: {iters} samples in {secs:.4}s → {tps:.1} samples/s (vocab={vocab}, capacity={})",
+            scratch.capacity()
+        );
+        assert!(scratch.capacity() >= vocab, "capacity restored after bench");
     }
 }

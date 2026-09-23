@@ -114,6 +114,7 @@ way).
 ~~Per-session engine **pool** for concurrent execution~~ — **done**
 (`EnginePool` free-list + config epoch; `performance.pool_size` 1..=4;
 state isolation already done). GB-scale atom experiment; ANN behind
-`VectorIndex` (**done** — IVF opt-in); sampler scratch `mem::take` with
-tokens/sec proof. Probabilistic speculative acceptance **done** (Levi).
+`VectorIndex` (**done** — IVF opt-in); ~~sampler scratch `mem::take`
+with tokens/sec proof~~ — **done** (113.1 samples/s @ vocab 32k,
+BENCHMARKS.md). Probabilistic speculative acceptance **done** (Levi).
 Details in ENGINEERING_REVIEW.md + BENCHMARKS.md.

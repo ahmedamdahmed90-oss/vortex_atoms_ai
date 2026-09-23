@@ -246,7 +246,7 @@ Full stacks in SVG: `vortex_api::handle_generate (24.3%)` → `LlmInference::gen
 
 * **logits Vec** — `LlmInference::logits_scratch: Vec<f32>` (`capacity 32000`, `src/llm_inference.rs:42`) reused via `VortexSampler::sample_with_scratch(&logits, &all_tokens, &mut scratch)` (`src/llm_sampling.rs:110`). `scratch.clear()` + `extend_from_slice(tmp)` — one vocab allocation total, no per-token `Vec::new`.
 * **dequant scratch** — quantized_llama internal scratch reused per forward (already, documented).
-* **sampler buffers** — greedy path skips `HashMap` entirely; non-greedy reuses `scratch` window penalty in-place (`src/llm_sampling.rs:135-145`).
+* **sampler buffers** — greedy path skips `HashMap` entirely; non-greedy reuses `scratch` window penalty in-place, then `mem::take` into the Tensor (no vocab clone; capacity restored after drop — see BENCHMARKS.md “Sampler non-greedy path — mem::take”).
 * **NO String/format!/Vec growth in loop** — loops in `src/llm_inference.rs:235,342` contain only `Tensor::new(&[token])`, `forward`, `sample_with_scratch`, `all_tokens.push`; no `format!`, no `String::new`, no `Vec::push` beyond `all_tokens` (pre-allocated `Vec::with_capacity(tokens.len()+max)`).
 * **Tokenizer decode batched** — `TokenOutputStream::next_token` per-token decode stays, but WS layer coalesces 50ms windows (see 6.1 `ws_coalesce_ms:50`); hot loop itself emits only `token_id`, batch decode happens outside loop. Verified: no `decode` String inside tight loop beyond coalescer.
 

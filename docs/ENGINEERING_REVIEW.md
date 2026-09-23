@@ -77,4 +77,7 @@
    (Levi accept + residual sampling; see CHANGELOG `[Unreleased]`).
 4. ANN index behind `VectorIndex` when N warrants it — **done** (IVF in
    `llm_embed.rs`, opt-in via `VectorStore::trained_ivf`).
-5. `sampler` scratch `mem::take` optimization with tokens/sec proof.
+5. ~~`sampler` scratch `mem::take` optimization with tokens/sec proof~~ —
+   **done** (`sample_with_scratch` non-greedy: `mem::take` + capacity
+   restore; 113.1 samples/s @ vocab 32k measured, 3 tests + bench —
+   see BENCHMARKS.md + CHANGELOG `[Unreleased]`).
